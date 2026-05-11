@@ -1,0 +1,19 @@
+[debug] [2026-05-02T04:19:01.370Z] ----------------------------------------------------------------------
+[debug] [2026-05-02T04:19:01.372Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Admin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-05-02T04:19:01.373Z] CLI Version:   15.16.0
+[debug] [2026-05-02T04:19:01.373Z] Platform:      win32
+[debug] [2026-05-02T04:19:01.373Z] Node Version:  v22.16.0
+[debug] [2026-05-02T04:19:01.373Z] Time:          Sat May 02 2026 12:19:01 GMT+0800 (Philippine Standard Time)
+[debug] [2026-05-02T04:19:01.373Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\Admin\WebstormProjects\CEMO-Admin
+
