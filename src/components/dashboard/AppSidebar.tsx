@@ -47,7 +47,7 @@ const data = {
     { title: "Waste Analytics", url: "/analytics", icon: AnalyticsUpIcon },
   ],
   navSecondary: [
-    { title: "Collection Logs", url: "/logs", icon: Note01Icon },
+    { title: "Waste Entry", url: "/waste-entries", icon: Note01Icon },
     { title: "Alerts", url: "/alerts", icon: Alert01Icon },
     { title: "Reports", url: "/reports", icon: Files01Icon },
   ],

@@ -15,7 +15,7 @@ import {
 
 import appIconSrc from "~/assets/icon.png";
 
-export function Login() {
+function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
@@ -235,3 +235,6 @@ export function Login() {
     </div>
   );
 }
+
+export { Login };
+export default Login;

@@ -39,8 +39,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { 
   MoreHorizontalIcon, 
   ViewIcon, 
-  Edit01Icon, 
-  Delete01Icon,
   Search01Icon,
   FilterIcon,
   Copy01Icon,
@@ -56,6 +54,7 @@ import { cn } from "~/lib/utils";
 
 interface UserManagementTableProps {
   users: UserProfile[];
+  canModifyUsers?: boolean;
   onView: (user: UserProfile) => void;
   onEdit: (user: UserProfile) => void;
   onDelete: (uid: string) => void;
@@ -65,8 +64,9 @@ interface UserManagementTableProps {
 
 const PAGE_SIZE = 5;
 
-export function UserManagementTable({ 
+function UserManagementTable({ 
   users, 
+  canModifyUsers = true,
   onView, 
   onEdit, 
   onDelete, 
@@ -75,6 +75,7 @@ export function UserManagementTable({
 }: UserManagementTableProps) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [profileTypeFilter, setProfileTypeFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -86,11 +87,17 @@ export function UserManagementTable({
           user.email.toLowerCase().includes(searchLower) ||
           (user.firstName || "").toLowerCase().includes(searchLower) ||
           (user.lastName || "").toLowerCase().includes(searchLower) ||
-          (user.displayName || "").toLowerCase().includes(searchLower);
+          (user.displayName || "").toLowerCase().includes(searchLower) ||
+          (user.establishmentName || "").toLowerCase().includes(searchLower) ||
+          (user.establishmentAddress || "").toLowerCase().includes(searchLower);
         
         const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
+        const matchesProfileType =
+          profileTypeFilter === "ALL" ||
+          (profileTypeFilter === "INDIVIDUAL" && user.isIndividual) ||
+          (profileTypeFilter === "ESTABLISHMENT" && !user.isIndividual);
         
-        return matchesSearch && matchesRole;
+        return matchesSearch && matchesRole && matchesProfileType;
       })
       .sort((a, b) => {
         if (sortBy === "newest") return b.createdAt.getTime() - a.createdAt.getTime();
@@ -98,7 +105,7 @@ export function UserManagementTable({
         if (sortBy === "name") return (a.firstName || "").localeCompare(b.firstName || "");
         return 0;
       });
-  }, [users, search, roleFilter, sortBy]);
+  }, [users, search, roleFilter, profileTypeFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredAndSortedUsers.length / PAGE_SIZE);
   
@@ -119,6 +126,11 @@ export function UserManagementTable({
 
   const handleSortChange = (val: string) => {
     setSortBy(val);
+    setCurrentPage(1);
+  };
+
+  const handleProfileTypeChange = (val: string) => {
+    setProfileTypeFilter(val);
     setCurrentPage(1);
   };
 
@@ -151,6 +163,19 @@ export function UserManagementTable({
               <SelectItem value="ALL">All Roles</SelectItem>
               <SelectItem value={UserRole.ADMIN}>Administrators</SelectItem>
               <SelectItem value={UserRole.USER}>Standard Users</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={profileTypeFilter} onValueChange={handleProfileTypeChange}>
+            <SelectTrigger className="w-[170px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={FilterIcon} className="size-3.5 text-zinc-400" />
+                <SelectValue placeholder="Profile Type" />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
+              <SelectItem value="ALL">All Types</SelectItem>
+              <SelectItem value="INDIVIDUAL">Individuals</SelectItem>
+              <SelectItem value="ESTABLISHMENT">Establishments</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={handleSortChange}>
@@ -202,6 +227,9 @@ export function UserManagementTable({
               <TableRow className="hover:bg-transparent border-b border-zinc-200 dark:border-white/[0.05]">
                 <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">User</TableHead>
                 <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">UID</TableHead>
+                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Profile Type</TableHead>
+                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Establishment</TableHead>
+                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address</TableHead>
                 <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Role</TableHead>
                 <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Joined</TableHead>
                 <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-right">Actions</TableHead>
@@ -226,6 +254,9 @@ export function UserManagementTable({
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-zinc-900 dark:text-white leading-none mb-1">{fullName}</span>
                             <span className="text-xs text-zinc-500">{user.email}</span>
+                            {!user.isIndividual && user.establishmentName && (
+                              <span className="text-[10px] text-zinc-400 mt-1">{user.establishmentName}</span>
+                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -241,6 +272,22 @@ export function UserManagementTable({
                             <HugeiconsIcon icon={Copy01Icon} className="size-3" />
                           </button>
                         </div>
+                      </TableCell>
+                      <TableCell className="px-6 py-4">
+                        <Badge className={cn(
+                          "text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 border",
+                          user.isIndividual
+                            ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                            : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                        )}>
+                          {user.isIndividual ? "INDIVIDUAL" : "ESTABLISHMENT"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-xs text-zinc-500 font-medium">
+                        {user.establishmentName || "N/A"}
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-xs text-zinc-500 font-medium max-w-[220px] truncate">
+                        {user.establishmentAddress || "N/A"}
                       </TableCell>
                       <TableCell className="px-6 py-4">
                         <Badge className={cn(
@@ -268,10 +315,6 @@ export function UserManagementTable({
                               <HugeiconsIcon icon={ViewIcon} className="size-4" />
                               <span className="font-bold text-xs">View Profile</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onEdit(user)} className="rounded-xl gap-2 focus:bg-zinc-100 dark:focus:bg-white/5 cursor-pointer py-2.5">
-                              <HugeiconsIcon icon={Edit01Icon} className="size-4" />
-                              <span className="font-bold text-xs">Edit User</span>
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => copyToClipboard(user.uid)} className="rounded-xl gap-2 focus:bg-zinc-100 dark:focus:bg-white/5 cursor-pointer py-2.5">
                               <HugeiconsIcon icon={Copy01Icon} className="size-4" />
                               <span className="font-bold text-xs">Copy UID</span>
@@ -281,10 +324,6 @@ export function UserManagementTable({
                               <HugeiconsIcon icon={Mail01Icon} className="size-4" />
                               <span className="font-bold text-xs">Reset Password</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onDelete(user.uid)} className="rounded-xl gap-2 focus:bg-red-500/10 focus:text-red-500 text-red-500 cursor-pointer py-2.5">
-                              <HugeiconsIcon icon={Delete01Icon} className="size-4" />
-                              <span className="font-bold text-xs">Delete Account</span>
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -293,14 +332,14 @@ export function UserManagementTable({
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-64 text-center">
-                    <div className="flex flex-col items-center justify-center text-zinc-400 gap-4">
-                      <HugeiconsIcon icon={Search01Icon} className="size-12 opacity-10" />
-                      <p className="font-bold text-sm">No users found matching your criteria</p>
-                      <Button variant="link" onClick={() => { handleSearchChange(""); handleRoleChange("ALL"); }} className="text-cemo-primary text-xs font-bold">Clear all filters</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                      <TableCell colSpan={8} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center text-zinc-400 gap-4">
+                          <HugeiconsIcon icon={Search01Icon} className="size-12 opacity-10" />
+                          <p className="font-bold text-sm">No users found matching your criteria</p>
+                          <Button variant="link" onClick={() => { handleSearchChange(""); handleRoleChange("ALL"); handleProfileTypeChange("ALL"); }} className="text-cemo-primary text-xs font-bold">Clear all filters</Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
               )}
             </TableBody>
           </Table>
@@ -381,3 +420,6 @@ export function UserManagementTable({
     </div>
   );
 }
+
+export { UserManagementTable };
+export default UserManagementTable;

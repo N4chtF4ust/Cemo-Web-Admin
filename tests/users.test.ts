@@ -49,6 +49,9 @@ describe("User Profile Functions", () => {
       lastName: "User",
       photoUrl: null,
       role: UserRole.USER,
+      isIndividual: true,
+      establishmentName: null,
+      establishmentAddress: null,
     };
 
     await createUserProfile(profileData);
@@ -70,6 +73,9 @@ describe("User Profile Functions", () => {
       uid: mockUid,
       email: mockEmail,
       role: UserRole.ADMIN,
+      isIndividual: false,
+      establishmentName: "CEMO Labs",
+      establishmentAddress: "Main Street",
       createdAt: new Date(),
       updatedAt: new Date(),
     };

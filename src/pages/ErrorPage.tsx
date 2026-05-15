@@ -12,7 +12,7 @@ interface ErrorPageProps {
   customMessage?: string;
 }
 
-export function ErrorPage({ errorCode: forcedCode, customMessage }: ErrorPageProps) {
+function ErrorPage({ errorCode: forcedCode, customMessage }: ErrorPageProps) {
   const routeError = useRouteError() as any;
   const navigate = useNavigate();
 
@@ -117,3 +117,6 @@ export function ErrorPage({ errorCode: forcedCode, customMessage }: ErrorPagePro
     </div>
   );
 }
+
+export { ErrorPage };
+export default ErrorPage;

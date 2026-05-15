@@ -12,14 +12,11 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
 
       // Creation: Users can create their own profile, but MUST be a 'USER'
-      // This prevents JS scripting from self-assigning 'ADMIN'
       allow create: if request.auth != null && 
                     request.auth.uid == userId && 
                     request.resource.data.role == 'USER';
 
       // Update: 
-      // 1. Users can update their own info IF they don't change their role
-      // 2. Admins can update any field for any user
       allow update: if request.auth != null && (
         (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
         isAdmin()
@@ -27,6 +24,12 @@ service cloud.firestore {
 
       // Deletion: Only admins can delete users
       allow delete: if isAdmin();
+
+      // Waste Entries Subcollection (Corrected name)
+      match /waste_entries/{entryId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      }
     }
   }
 }

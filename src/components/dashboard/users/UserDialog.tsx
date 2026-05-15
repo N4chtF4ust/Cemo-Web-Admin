@@ -25,7 +25,7 @@ interface UserDialogProps {
   user?: UserProfile | null;
 }
 
-export function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
+function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
   const [formData, setFormData] = useState<Partial<UserProfile>>({
     email: "",
     displayName: "",
@@ -33,30 +33,39 @@ export function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
     lastName: "",
     photoUrl: "",
     role: UserRole.USER,
+    isIndividual: true,
+    establishmentName: "",
+    establishmentAddress: "",
   });
 
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setFormData({
-        email: user.email,
-        displayName: user.displayName || "",
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        photoUrl: user.photoUrl || "",
-        role: user.role,
-      });
-    } else {
-      setFormData({
-        email: "",
-        displayName: "",
-        firstName: "",
-        lastName: "",
-        photoUrl: "",
-        role: UserRole.USER,
-      });
-    }
+        setFormData({
+          email: user.email,
+          displayName: user.displayName || "",
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          photoUrl: user.photoUrl || "",
+          role: user.role,
+          isIndividual: user.isIndividual,
+          establishmentName: user.establishmentName || "",
+          establishmentAddress: user.establishmentAddress || "",
+        });
+      } else {
+        setFormData({
+          email: "",
+          displayName: "",
+          firstName: "",
+          lastName: "",
+          photoUrl: "",
+          role: UserRole.USER,
+          isIndividual: true,
+          establishmentName: "",
+          establishmentAddress: "",
+        });
+      }
   }, [user, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,6 +160,52 @@ export function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Profile Type</label>
+            <Select
+              value={formData.isIndividual ? "INDIVIDUAL" : "ESTABLISHMENT"}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  isIndividual: value === "INDIVIDUAL",
+                  establishmentName: value === "INDIVIDUAL" ? "" : formData.establishmentName,
+                  establishmentAddress: value === "INDIVIDUAL" ? "" : formData.establishmentAddress,
+                })
+              }
+            >
+              <SelectTrigger className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20">
+                <SelectValue placeholder="Select profile type" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
+                <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                <SelectItem value="ESTABLISHMENT">Establishment</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!formData.isIndividual && (
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Establishment Name</label>
+                <Input
+                  value={formData.establishmentName || ""}
+                  onChange={e => setFormData({ ...formData, establishmentName: e.target.value })}
+                  className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
+                  placeholder="CEMO Tech Hub"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Establishment Address</label>
+                <Input
+                  value={formData.establishmentAddress || ""}
+                  onChange={e => setFormData({ ...formData, establishmentAddress: e.target.value })}
+                  className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
+                  placeholder="123 Innovation Street"
+                />
+              </div>
+            </div>
+          )}
+
           {user && (
             <div className="pt-4 border-t border-zinc-100 dark:border-white/5 space-y-2">
               <div className="flex justify-between text-[10px] uppercase font-bold text-zinc-400">
@@ -185,3 +240,6 @@ export function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
     </Dialog>
   );
 }
+
+export { UserDialog };
+export default UserDialog;

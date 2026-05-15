@@ -2,7 +2,6 @@ import {
   UserGroupIcon, 
   UserCircleIcon, 
   UserAdd01Icon,
-  Calendar01Icon,
   Clock01Icon
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -15,15 +14,13 @@ interface UserStatsProps {
   users: UserProfile[];
 }
 
-export function UserStats({ users }: UserStatsProps) {
+function UserStats({ users }: UserStatsProps) {
   const totalUsers = users.length;
   const adminUsers = users.filter(u => u.role === UserRole.ADMIN).length;
-  const standardUsers = totalUsers - adminUsers;
+  const individualUsers = users.filter((u) => u.isIndividual).length;
+  const establishmentUsers = totalUsers - individualUsers;
   
   const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const newThisMonth = users.filter(u => u.createdAt >= firstDayOfMonth).length;
-  
   const recentlyUpdated = users.filter(u => {
     const diff = now.getTime() - u.updatedAt.getTime();
     return diff < 24 * 60 * 60 * 1000; // Last 24 hours
@@ -32,8 +29,8 @@ export function UserStats({ users }: UserStatsProps) {
   const stats = [
     { title: "Total Users", value: totalUsers, icon: UserGroupIcon, color: "text-blue-500" },
     { title: "Admin Users", value: adminUsers, icon: UserCircleIcon, color: "text-purple-500" },
-    { title: "Standard Users", value: standardUsers, icon: UserGroupIcon, color: "text-emerald-500" },
-    { title: "New This Month", value: newThisMonth, icon: UserAdd01Icon, color: "text-cemo-primary" },
+    { title: "Individual Users", value: individualUsers, icon: UserGroupIcon, color: "text-emerald-500" },
+    { title: "Establishments", value: establishmentUsers, icon: UserAdd01Icon, color: "text-cemo-primary" },
     { title: "Recently Updated", value: recentlyUpdated, icon: Clock01Icon, color: "text-orange-500" },
   ];
 
@@ -55,3 +52,6 @@ export function UserStats({ users }: UserStatsProps) {
     </div>
   );
 }
+
+export { UserStats };
+export default UserStats;

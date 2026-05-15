@@ -6,8 +6,6 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
-  query, 
-  orderBy,
   Timestamp 
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -25,6 +23,9 @@ export interface UserProfile {
   lastName: string | null;
   photoUrl: string | null;
   role: UserRole;
+  isIndividual: boolean;
+  establishmentName: string | null;
+  establishmentAddress: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,8 +33,17 @@ export interface UserProfile {
 /**
  * Converts Firestore data to UserProfile interface.
  */
-const mapToUserProfile = (data: any): UserProfile => ({
-  ...data,
+const mapToUserProfile = (data: any, fallbackUid?: string): UserProfile => ({
+  uid: data.uid || fallbackUid || "",
+  email: data.email || "",
+  displayName: data.displayName ?? null,
+  firstName: data.firstName ?? null,
+  lastName: data.lastName ?? null,
+  photoUrl: data.photoUrl ?? null,
+  role: data.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.USER,
+  isIndividual: typeof data.isIndividual === "boolean" ? data.isIndividual : true,
+  establishmentName: data.establishmentName ?? null,
+  establishmentAddress: data.establishmentAddress ?? null,
   createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
   updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
 });
@@ -70,13 +80,7 @@ export const getUsers = async (): Promise<UserProfile[]> => {
       return [];
     }
 
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return mapToUserProfile({
-        ...data,
-        uid: data.uid || doc.id // Fallback to doc ID if uid field is missing
-      });
-    });
+    return querySnapshot.docs.map((userDoc) => mapToUserProfile(userDoc.data(), userDoc.id));
   } catch (error) {
     console.error("Error fetching users from Firestore:", error);
     throw error;
@@ -91,7 +95,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   const userSnap = await getDoc(userRef);
 
   if (userSnap.exists()) {
-    return mapToUserProfile(userSnap.data());
+    return mapToUserProfile(userSnap.data(), uid);
   }
 
   return null;
