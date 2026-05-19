@@ -1,0 +1,35 @@
+digraph DashboardFlow {
+    graph [splines=ortho, nodesep=1.0, ranksep=0.8, forcelabels=true, bgcolor="transparent"]
+    fontname="Times New Roman"
+    node [fontname="Times New Roman", shape=rectangle, style=solid, fillcolor="transparent", color=black, penwidth=1.5]
+    edge [fontname="Times New Roman", color=black, penwidth=1.0]
+    rankdir=TB;
+
+    Conn_A_In [shape=circle, label="A", fixedsize=true, width=0.4]
+    Conn_A_Out [shape=circle, label="A", fixedsize=true, width=0.4]
+    Conn_B [shape=circle, label="B", fixedsize=true, width=0.4]
+    Conn_C [shape=circle, label="C", fixedsize=true, width=0.4]
+    Conn_Z [shape=circle, label="Z", fixedsize=true, width=0.4]
+
+    Conn_A_In -> Fetch
+    Fetch [label="Fetch Dashboard Stats"]
+    Fetch -> Render
+    Render [label="Display Dashboard Overview"]
+    Render -> NavChoice
+    
+    NavChoice [shape=diamond, label="Navigation Choice?"]
+    NavChoice -> RefreshChoice [xlabel="Other"]
+    NavChoice -> Conn_B [xlabel="Users"]
+    
+    RefreshChoice [shape=diamond, label="Refresh?"]
+    RefreshChoice -> WasteChoice [xlabel="No"]
+    RefreshChoice -> Conn_A_Out [xlabel="Yes"]
+    
+    WasteChoice [shape=diamond, label="Waste Logs?"]
+    WasteChoice -> LogoutChoice [xlabel="No"]
+    WasteChoice -> Conn_C [xlabel="Yes"]
+    
+    LogoutChoice [shape=diamond, label="Logout?"]
+    LogoutChoice -> Render [xlabel="No"]
+    LogoutChoice -> Conn_Z [xlabel="Yes"]
+}

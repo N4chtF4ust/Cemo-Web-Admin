@@ -1,0 +1,30 @@
+digraph AuthFlow {
+    graph [splines=ortho, nodesep=1.0, ranksep=0.8, forcelabels=true, bgcolor="transparent"]
+    fontname="Times New Roman"
+    node [fontname="Times New Roman", shape=rectangle, style=solid, fillcolor="transparent", color=black, penwidth=1.5]
+    edge [fontname="Times New Roman", color=black, penwidth=1.0]
+    rankdir=TB;
+
+    START [shape=oval, label="START"]
+    Conn_A [shape=circle, label="A", fixedsize=true, width=0.4]
+
+    START -> Entry
+    Entry [label="User Accesses Application"]
+    Entry -> AuthCheck
+    AuthCheck [shape=diamond, label="Is Logged In?"]
+    
+    AuthCheck -> LoginUI [xlabel="No"]
+    AuthCheck -> Conn_A [xlabel="Yes"]
+
+    LoginUI [label="Display Login Screen"]
+    LoginUI -> Submit
+    Submit [label="Submit Registry ID & Key"]
+    Submit -> Verify
+    Verify [shape=diamond, label="Valid Admin?"]
+    
+    Verify -> ErrorMsg [xlabel="No"]
+    Verify -> Conn_A [xlabel="Yes"]
+    
+    ErrorMsg [label="Display Access Denied"]
+    ErrorMsg -> LoginUI
+}

@@ -1,0 +1,33 @@
+digraph UsersFlow {
+    graph [splines=ortho, nodesep=1.0, ranksep=0.8, forcelabels=true, bgcolor="transparent"]
+    fontname="Times New Roman"
+    node [fontname="Times New Roman", shape=rectangle, style=solid, fillcolor="transparent", color=black, penwidth=1.5]
+    edge [fontname="Times New Roman", color=black, penwidth=1.0]
+    rankdir=TB;
+
+    Conn_B_In [shape=circle, label="B", fixedsize=true, width=0.4]
+    Conn_B_Out [shape=circle, label="B", fixedsize=true, width=0.4]
+    Conn_A [shape=circle, label="A", fixedsize=true, width=0.4]
+    Conn_Z [shape=circle, label="Z", fixedsize=true, width=0.4]
+
+    Conn_B_In -> FetchUsers
+    FetchUsers [label="Retrieve User Profiles"]
+    FetchUsers -> RenderUsers
+    RenderUsers [label="Display User Management Table"]
+    RenderUsers -> UserAction
+    
+    UserAction [shape=diamond, label="User Action?"]
+    UserAction -> CRUDChoice [xlabel="Other"]
+    UserAction -> Conn_A [xlabel="Dashboard"]
+    
+    CRUDChoice [shape=diamond, label="Modify User?"]
+    CRUDChoice -> LogoutChoice [xlabel="No"]
+    CRUDChoice -> ProcessCRUD [xlabel="Yes"]
+    
+    ProcessCRUD [label="Submit Firestore Update"]
+    ProcessCRUD -> Conn_B_Out
+
+    LogoutChoice [shape=diamond, label="Logout?"]
+    LogoutChoice -> RenderUsers [xlabel="No"]
+    LogoutChoice -> Conn_Z [xlabel="Yes"]
+}

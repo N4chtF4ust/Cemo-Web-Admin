@@ -1,0 +1,35 @@
+digraph WasteFlow {
+    graph [splines=ortho, nodesep=1.0, ranksep=0.8, forcelabels=true, bgcolor="transparent"]
+    fontname="Times New Roman"
+    node [fontname="Times New Roman", shape=rectangle, style=solid, fillcolor="transparent", color=black, penwidth=1.5]
+    edge [fontname="Times New Roman", color=black, penwidth=1.0]
+    rankdir=TB;
+
+    Conn_C_In [shape=circle, label="C", fixedsize=true, width=0.4]
+    Conn_C_Out [shape=circle, label="C", fixedsize=true, width=0.4]
+    Conn_A [shape=circle, label="A", fixedsize=true, width=0.4]
+    Conn_Z [shape=circle, label="Z", fixedsize=true, width=0.4]
+
+    Conn_C_In -> UserSelect
+    UserSelect [label="Select User for Logs"]
+    UserSelect -> FetchLogs
+    FetchLogs [label="Retrieve Disposal Entries"]
+    FetchLogs -> RenderLogs
+    RenderLogs [label="Display Waste Entries Table"]
+    RenderLogs -> WasteAction
+    
+    WasteAction [shape=diamond, label="Waste Action?"]
+    WasteAction -> NavChoice [xlabel="Other"]
+    WasteAction -> Conn_A [xlabel="Dashboard"]
+    
+    NavChoice [shape=diamond, label="Search/Paginate?"]
+    NavChoice -> LogoutChoice [xlabel="No"]
+    NavChoice -> UpdateView [xlabel="Yes"]
+    
+    UpdateView [label="Apply Table Filters"]
+    UpdateView -> Conn_C_Out
+
+    LogoutChoice [shape=diamond, label="Logout?"]
+    LogoutChoice -> RenderLogs [xlabel="No"]
+    LogoutChoice -> Conn_Z [xlabel="Yes"]
+}

@@ -1,0 +1,16 @@
+digraph LogoutFlow {
+    graph [splines=ortho, nodesep=1.0, ranksep=0.8, forcelabels=true, bgcolor="transparent"]
+    fontname="Times New Roman"
+    node [fontname="Times New Roman", shape=rectangle, style=solid, fillcolor="transparent", color=black, penwidth=1.5]
+    edge [fontname="Times New Roman", color=black, penwidth=1.0]
+    rankdir=TB;
+
+    Conn_Z_In [shape=circle, label="Z", fixedsize=true, width=0.4]
+    END [shape=oval, label="END"]
+
+    Conn_Z_In -> SignOut
+    SignOut [label="Call Firebase Authentication SignOut"]
+    SignOut -> CleanSession
+    CleanSession [label="Clear Local State Cache"]
+    CleanSession -> END
+}
