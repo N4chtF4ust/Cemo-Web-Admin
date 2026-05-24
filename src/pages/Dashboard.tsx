@@ -5,18 +5,21 @@ import {
   Note01Icon,
   DashboardCircleIcon,
   DatabaseIcon,
-  Leaf01Icon
+  Leaf01Icon,
+  Building03Icon,
+  UserCircleIcon
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
 import { StatsCard, RecentAlerts } from "~/components/dashboard/Stats";
 import { UserTable } from "~/components/dashboard/UserTable";
-import { getUsers } from "~/lib/firestore/users";
+import { getUsers, type UserProfile } from "~/lib/firestore/users";
 import { getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
 import { format } from "date-fns";
 import { Badge } from "~/components/ui/badge";
 
 function Dashboard() {
-  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [wasteEntries, setWasteEntries] = useState<WasteEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,11 +27,11 @@ function Dashboard() {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const [users, entries] = await Promise.all([
+        const [usersData, entries] = await Promise.all([
           getUsers(),
           getAllWasteEntries(500) // Fetch a substantial amount for stats
         ]);
-        setTotalUsers(users.length);
+        setUsers(usersData);
         setWasteEntries(entries);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -45,13 +48,30 @@ function Dashboard() {
     const totalCH4 = wasteEntries.reduce((sum, e) => sum + e.methanePotential, 0);
     const totalCO2 = wasteEntries.reduce((sum, e) => sum + e.co2Potential, 0);
     
+    // User type breakdowns
+    const individuals = users.filter(u => u.isIndividual);
+    const establishments = users.filter(u => !u.isIndividual);
+    
+    // Waste breakdowns
+    const individualUids = new Set(individuals.map(u => u.uid));
+    const individualWaste = wasteEntries
+        .filter(e => e.userId && individualUids.has(e.userId))
+        .reduce((sum, e) => sum + e.weightAdded, 0);
+    
+    const establishmentWaste = totalWeight - individualWaste;
+
     return {
       weight: totalWeight.toFixed(1),
       ch4: totalCH4.toFixed(2),
       co2: totalCO2.toFixed(2),
-      entriesCount: wasteEntries.length
+      entriesCount: wasteEntries.length,
+      totalUsers: users.length,
+      totalIndividuals: individuals.length,
+      totalEstablishments: establishments.length,
+      individualWaste: individualWaste.toFixed(1),
+      establishmentWaste: establishmentWaste.toFixed(1)
     };
-  }, [wasteEntries]);
+  }, [wasteEntries, users]);
 
   // Weekly Waste Generation
   const weeklyData = useMemo(() => {
@@ -87,10 +107,10 @@ function Dashboard() {
         <p className="text-zinc-500 text-sm">Real-time monitoring of food waste collection and environmental impact.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
           title="Total Users" 
-          value={loading ? "..." : totalUsers} 
+          value={loading ? "..." : stats.totalUsers} 
           icon={UserGroupIcon} 
         />
         <StatsCard 
@@ -109,6 +129,37 @@ function Dashboard() {
           value={loading ? "..." : stats.co2} 
           icon={AnalyticsUpIcon} 
         />
+      </div>
+
+      {/* Breakdown Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-6 shadow-sm flex items-center gap-6 group">
+            <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500 group-hover:scale-110 transition-transform">
+                <HugeiconsIcon icon={Building03Icon} className="size-8" />
+            </div>
+            <div className="space-y-1">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Establishments</p>
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">{loading ? "..." : stats.totalEstablishments}</h3>
+                    <span className="text-xs text-zinc-400">active accounts</span>
+                </div>
+                <p className="text-xs font-medium text-zinc-500">Contributed <span className="text-zinc-900 dark:text-white font-bold">{stats.establishmentWaste} kg</span> total waste</p>
+            </div>
+        </div>
+
+        <div className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-6 shadow-sm flex items-center gap-6 group">
+            <div className="p-4 bg-orange-500/10 rounded-2xl text-orange-500 group-hover:scale-110 transition-transform">
+                <HugeiconsIcon icon={UserCircleIcon} className="size-8" />
+            </div>
+            <div className="space-y-1">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Individual Users</p>
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">{loading ? "..." : stats.totalIndividuals}</h3>
+                    <span className="text-xs text-zinc-400">active accounts</span>
+                </div>
+                <p className="text-xs font-medium text-zinc-500">Contributed <span className="text-zinc-900 dark:text-white font-bold">{stats.individualWaste} kg</span> total waste</p>
+            </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

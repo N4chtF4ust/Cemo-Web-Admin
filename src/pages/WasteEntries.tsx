@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
-import { getWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
+import { getWasteEntries, getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
 import { getUsers, type UserProfile } from "~/lib/firestore/users";
 import {
   Table,
@@ -26,24 +26,40 @@ import {
   Refresh01Icon,
   Search01Icon,
   ArrowLeft01Icon,
-  ArrowRight01Icon
+  ArrowRight01Icon,
+  ThermometerIcon,
+  DropletIcon,
+  Building03Icon,
+  UserGroupIcon
 } from "@hugeicons/core-free-icons";
 import { format } from "date-fns";
 import { cn } from "~/lib/utils";
 
 const ITEMS_PER_PAGE = 5;
 
+type ViewMode = "individual" | "establishment";
+
+interface EstablishmentSummary {
+  key: string;
+  name: string;
+  address: string;
+  uids: string[];
+}
+
 export function WasteEntries() {
+  const [viewMode, setViewMode] = useState<ViewMode>("individual");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [userSearch, setUserSearch] = useState("");
+  const [selectedEstKey, setSelectedEstKey] = useState<string>("");
+  const [search, setSearch] = useState("");
   const [entries, setEntries] = useState<WasteEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<WasteEntry[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Pagination states
-  const [userPage, setUserPage] = useState(1);
+  const [sidebarPage, setSidebarPage] = useState(1);
   const [entryPage, setEntryPage] = useState(1);
 
   const fetchUsers = async () => {
@@ -52,7 +68,8 @@ export function WasteEntries() {
       const data = await getUsers();
       setUsers(data);
       if (data.length > 0 && !selectedUserId) {
-        setSelectedUserId(data[0].uid);
+        const firstIndiv = data.find(u => u.isIndividual);
+        if (firstIndiv) setSelectedUserId(firstIndiv.uid);
       }
     } catch (err: any) {
       console.error("WasteEntries: Error fetching users:", err);
@@ -62,8 +79,21 @@ export function WasteEntries() {
     }
   };
 
+  const fetchAllEntries = async () => {
+    setLoadingEntries(true);
+    try {
+      const data = await getAllWasteEntries(1000);
+      setAllEntries(data);
+    } catch (err: any) {
+      console.error("WasteEntries: Error fetching all entries:", err);
+    } finally {
+      setLoadingEntries(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchAllEntries();
   }, []);
 
   const fetchEntries = async () => {
@@ -73,7 +103,7 @@ export function WasteEntries() {
     try {
       const data = await getWasteEntries(selectedUserId);
       setEntries(data);
-      setEntryPage(1); // Reset entries page when user logs change
+      setEntryPage(1); 
     } catch (err: any) {
       console.error(`WasteEntries: Error fetching entries for ${selectedUserId}:`, err);
       setError(err.message || "Failed to load waste entries.");
@@ -83,37 +113,86 @@ export function WasteEntries() {
   };
 
   useEffect(() => {
-    fetchEntries();
-  }, [selectedUserId]);
+    if (viewMode === "individual") {
+      fetchEntries();
+    }
+  }, [selectedUserId, viewMode]);
 
-  const filteredUsers = useMemo(() => {
-    const query = userSearch.toLowerCase().trim();
-    return users.filter(user => 
-      (user.displayName?.toLowerCase() || "").includes(query) ||
-      (user.email?.toLowerCase() || "").includes(query) ||
-      (user.firstName?.toLowerCase() || "").includes(query) ||
-      (user.lastName?.toLowerCase() || "").includes(query)
-    );
-  }, [users, userSearch]);
+  const individualUsers = useMemo(() => {
+    return users.filter(u => u.isIndividual);
+  }, [users]);
 
-  // Reset user page when search changes
+  const establishments = useMemo(() => {
+    const map = new Map<string, EstablishmentSummary>();
+    users.filter(u => !u.isIndividual).forEach(user => {
+      const name = user.establishmentName || "Unnamed Establishment";
+      const address = user.establishmentAddress || "No Address";
+      const key = `${name}::${address}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.uids.push(user.uid);
+      } else {
+        map.set(key, { key, name, address, uids: [user.uid] });
+      }
+    });
+    const result = Array.from(map.values());
+    if (result.length > 0 && !selectedEstKey) {
+        setSelectedEstKey(result[0].key);
+    }
+    return result;
+  }, [users, selectedEstKey]);
+
+  const filteredItems = useMemo(() => {
+    const query = search.toLowerCase().trim();
+    if (viewMode === "individual") {
+        return individualUsers.filter(user => 
+            (user.displayName?.toLowerCase() || "").includes(query) ||
+            (user.email?.toLowerCase() || "").includes(query) ||
+            (user.firstName?.toLowerCase() || "").includes(query) ||
+            (user.lastName?.toLowerCase() || "").includes(query)
+          );
+    } else {
+        return establishments.filter(est => 
+            est.name.toLowerCase().includes(query) ||
+            est.address.toLowerCase().includes(query)
+        );
+    }
+  }, [individualUsers, establishments, search, viewMode]);
+
+  const currentEst = establishments.find(e => e.key === selectedEstKey);
+
+  const establishmentEntries = useMemo(() => {
+    if (!currentEst) return [];
+    return allEntries.filter(entry => entry.userId && currentEst.uids.includes(entry.userId))
+      .map(entry => {
+        const user = users.find(u => u.uid === entry.userId);
+        return {
+            ...entry,
+            recordedBy: user?.displayName || user?.email || "Unknown User"
+        };
+      });
+  }, [allEntries, currentEst, users]);
+
+  // Reset page on search or mode change
   useEffect(() => {
-    setUserPage(1);
-  }, [userSearch]);
+    setSidebarPage(1);
+    setEntryPage(1);
+  }, [search, viewMode]);
 
-  // User Pagination
-  const totalUserPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE) || 1;
-  const pagedUsers = useMemo(() => {
-    const start = (userPage - 1) * ITEMS_PER_PAGE;
-    return filteredUsers.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredUsers, userPage]);
+  // Sidebar Pagination
+  const totalSidebarPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE) || 1;
+  const pagedSidebarItems = useMemo(() => {
+    const start = (sidebarPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredItems, sidebarPage]);
 
   // Entry Pagination
-  const totalEntryPages = Math.ceil(entries.length / ITEMS_PER_PAGE) || 1;
+  const activeEntries = viewMode === "individual" ? entries : establishmentEntries;
+  const totalEntryPages = Math.ceil(activeEntries.length / ITEMS_PER_PAGE) || 1;
   const pagedEntries = useMemo(() => {
     const start = (entryPage - 1) * ITEMS_PER_PAGE;
-    return entries.slice(start, start + ITEMS_PER_PAGE);
-  }, [entries, entryPage]);
+    return activeEntries.slice(start, start + ITEMS_PER_PAGE);
+  }, [activeEntries, entryPage]);
 
   const selectedUser = users.find(u => u.uid === selectedUserId);
 
@@ -122,36 +201,64 @@ export function WasteEntries() {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Waste Entries</h2>
-          <p className="text-zinc-500 text-sm">Monitor and manage waste disposal logs per user</p>
+          <p className="text-zinc-500 text-sm">Monitor and manage waste disposal logs across the system</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => { fetchUsers(); fetchEntries(); }}
-          className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit"
-        >
-          <HugeiconsIcon icon={Refresh01Icon} className="size-4" />
-          Refresh Data
-        </Button>
+        <div className="flex items-center gap-3">
+            <div className="flex bg-zinc-100 dark:bg-white/5 p-1 rounded-xl border border-zinc-200 dark:border-white/10">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setViewMode("individual")}
+                    className={cn(
+                        "rounded-lg text-xs font-bold gap-2 px-4 transition-all",
+                        viewMode === "individual" ? "bg-white dark:bg-white/10 shadow-sm text-cemo-primary" : "text-zinc-500"
+                    )}
+                >
+                    <HugeiconsIcon icon={UserCircleIcon} className="size-3.5" />
+                    Individual
+                </Button>
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setViewMode("establishment")}
+                    className={cn(
+                        "rounded-lg text-xs font-bold gap-2 px-4 transition-all",
+                        viewMode === "establishment" ? "bg-white dark:bg-white/10 shadow-sm text-cemo-primary" : "text-zinc-500"
+                    )}
+                >
+                    <HugeiconsIcon icon={Building03Icon} className="size-3.5" />
+                    Establishment
+                </Button>
+            </div>
+            <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => { fetchUsers(); fetchEntries(); fetchAllEntries(); }}
+            className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit"
+            >
+            <HugeiconsIcon icon={Refresh01Icon} className="size-4" />
+            Refresh
+            </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* User Selector Sidebar */}
+        {/* Sidebar Selector */}
         <Card className="lg:col-span-4 border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] backdrop-blur-xl flex flex-col h-full">
           <CardHeader className="pb-4">
             <CardTitle className="text-sm font-bold flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <HugeiconsIcon icon={UserCircleIcon} className="size-4 text-cemo-primary" />
-                Select User
+                <HugeiconsIcon icon={viewMode === "individual" ? UserCircleIcon : Building03Icon} className="size-4 text-cemo-primary" />
+                Select {viewMode === "individual" ? "User" : "Establishment"}
               </span>
-              <Badge variant="outline" className="text-[10px] py-0">{filteredUsers.length} total</Badge>
+              <Badge variant="outline" className="text-[10px] py-0">{filteredItems.length} total</Badge>
             </CardTitle>
             <div className="relative mt-2">
               <HugeiconsIcon icon={Search01Icon} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
               <Input
-                placeholder="Search users..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder={`Search ${viewMode === "individual" ? "users" : "establishments"}...`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-zinc-950/50"
               />
             </div>
@@ -168,58 +275,88 @@ export function WasteEntries() {
                     </div>
                   </div>
                 ))
-              ) : pagedUsers.length > 0 ? (
-                pagedUsers.map((user) => {
-                  const isActive = selectedUserId === user.uid;
-                  const name = user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
-                  return (
-                    <button
-                      key={user.uid}
-                      onClick={() => setSelectedUserId(user.uid)}
-                      className={cn(
-                        "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left group",
-                        isActive 
-                          ? "bg-cemo-primary text-white shadow-lg shadow-cemo-primary/20"
-                          : "hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-600 dark:text-zinc-400"
-                      )}
-                    >
-                      <Avatar className={cn("size-10 border-2", isActive ? "border-white/20" : "border-zinc-200 dark:border-white/10")}>
-                        <AvatarImage src={user.photoUrl || ""} />
-                        <AvatarFallback className={cn(isActive ? "bg-white/10 text-white" : "bg-zinc-100 dark:bg-white/5")}>
-                          {name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                          <span className={cn("text-sm font-bold truncate", isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
-                          {name}
-                        </span>
-                        <span className={cn("text-[11px] truncate",isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
-                          {user.email}
-                        </span>
-                      </div>
-                    </button>
-                  );
+              ) : pagedSidebarItems.length > 0 ? (
+                pagedSidebarItems.map((item: any) => {
+                  if (viewMode === "individual") {
+                    const user = item as UserProfile;
+                    const isActive = selectedUserId === user.uid;
+                    const name = user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
+                    return (
+                        <button
+                          key={user.uid}
+                          onClick={() => setSelectedUserId(user.uid)}
+                          className={cn(
+                            "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left group",
+                            isActive 
+                              ? "bg-cemo-primary text-white shadow-lg shadow-cemo-primary/20"
+                              : "hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-600 dark:text-zinc-400"
+                          )}
+                        >
+                          <Avatar className={cn("size-10 border-2", isActive ? "border-white/20" : "border-zinc-200 dark:border-white/10")}>
+                            <AvatarImage src={user.photoUrl || ""} />
+                            <AvatarFallback className={cn(isActive ? "bg-white/10 text-white" : "bg-zinc-100 dark:bg-white/5")}>
+                              {name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col min-w-0">
+                            <span className={cn("text-sm font-bold truncate", isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
+                              {name}
+                            </span>
+                            <span className={cn("text-[11px] truncate",isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
+                              {user.email}
+                            </span>
+                          </div>
+                        </button>
+                    );
+                  } else {
+                    const est = item as EstablishmentSummary;
+                    const isActive = selectedEstKey === est.key;
+                    return (
+                        <button
+                          key={est.key}
+                          onClick={() => setSelectedEstKey(est.key)}
+                          className={cn(
+                            "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left group",
+                            isActive 
+                              ? "bg-cemo-primary text-white shadow-lg shadow-cemo-primary/20"
+                              : "hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-600 dark:text-zinc-400"
+                          )}
+                        >
+                          <div className={cn("size-10 rounded-full flex items-center justify-center border-2 shrink-0", isActive ? "border-white/20 bg-white/10" : "border-zinc-200 dark:border-white/10 bg-zinc-100 dark:bg-white/5")}>
+                            <HugeiconsIcon icon={Building03Icon} className={cn("size-5", isActive ? "text-white" : "text-zinc-400")} />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className={cn("text-sm font-bold truncate", isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
+                              {est.name}
+                            </span>
+                            <span className={cn("text-[11px] truncate",isActive ? "text-black" : "text-zinc-900 dark:text-white")}>
+                              {est.address}
+                            </span>
+                          </div>
+                        </button>
+                    );
+                  }
                 })
               ) : (
                 <div className="py-8 text-center px-4">
-                  <p className="text-sm text-zinc-500 font-medium">No users match search.</p>
+                  <p className="text-sm text-zinc-500 font-medium">No results match search.</p>
                 </div>
               )}
             </div>
 
-            {/* User Pagination Controls */}
-            {totalUserPages > 1 && (
+            {/* Sidebar Pagination Controls */}
+            {totalSidebarPages > 1 && (
               <div className="flex items-center justify-between px-2 pt-4 border-t border-zinc-200 dark:border-white/10 mt-auto">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                  Page {userPage} of {totalUserPages}
+                  Page {sidebarPage} of {totalSidebarPages}
                 </span>
                 <div className="flex gap-1">
                   <Button
                     variant="outline"
                     size="icon"
                     className="size-8 rounded-lg"
-                    disabled={userPage === 1}
-                    onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                    disabled={sidebarPage === 1}
+                    onClick={() => setSidebarPage(p => Math.max(1, p - 1))}
                   >
                     <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
                   </Button>
@@ -227,8 +364,8 @@ export function WasteEntries() {
                     variant="outline"
                     size="icon"
                     className="size-8 rounded-lg"
-                    disabled={userPage === totalUserPages}
-                    onClick={() => setUserPage(p => Math.min(totalUserPages, p + 1))}
+                    disabled={sidebarPage === totalSidebarPages}
+                    onClick={() => setSidebarPage(p => Math.min(totalSidebarPages, p + 1))}
                   >
                     <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />
                   </Button>
@@ -243,10 +380,13 @@ export function WasteEntries() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 border-b border-zinc-200 dark:border-white/10 mb-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <HugeiconsIcon icon={Files01Icon} className="size-4 text-cemo-primary" />
-              Logs for {selectedUser?.displayName || selectedUser?.email || "Selected User"}
+              Logs for {viewMode === "individual" 
+                ? (selectedUser?.displayName || selectedUser?.email || "Selected User")
+                : (currentEst?.name || "Selected Establishment")
+              }
             </CardTitle>
             <Badge variant="outline" className="rounded-lg border-cemo-primary/20 text-cemo-primary">
-              {entries.length} Entries
+              {activeEntries.length} Entries
             </Badge>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col">
@@ -257,7 +397,7 @@ export function WasteEntries() {
                     <Skeleton key={i} className="h-16 w-full rounded-2xl" />
                   ))}
                 </div>
-              ) : error ? (
+              ) : error && viewMode === "individual" ? (
                 <div className="p-12 text-center flex flex-col items-center gap-4">
                   <div className="p-4 bg-red-500/10 rounded-2xl text-red-500">
                     <HugeiconsIcon icon={AlertCircleIcon} className="size-8" />
@@ -268,7 +408,7 @@ export function WasteEntries() {
                   </div>
                   <Button variant="outline" size="sm" onClick={fetchEntries} className="rounded-xl">Retry Protocol</Button>
                 </div>
-              ) : entries.length === 0 ? (
+              ) : activeEntries.length === 0 ? (
                 <div className="p-12 text-center flex flex-col items-center gap-6">
                   <div className="p-6 bg-zinc-100 dark:bg-white/5 rounded-3xl">
                     <HugeiconsIcon icon={Note01Icon} className="size-12 text-zinc-400" />
@@ -276,7 +416,10 @@ export function WasteEntries() {
                   <div className="space-y-2">
                     <p className="text-xl font-bold text-zinc-900 dark:text-white">No entries detected</p>
                     <p className="text-sm text-zinc-500 max-w-xs mx-auto">
-                      UID: <span className="font-mono bg-zinc-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-[10px]">{selectedUserId}</span> has no disposal logs in <span className="font-mono bg-zinc-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-[10px]">/waste_entries</span>
+                      {viewMode === "individual" 
+                        ? `UID: ${selectedUserId} has no disposal logs`
+                        : `${currentEst?.name} has no collective disposal logs`
+                      }
                     </p>
                   </div>
                 </div>
@@ -288,7 +431,11 @@ export function WasteEntries() {
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Timestamp</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Category</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Weight (kg)</TableHead>
+                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Environment</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Metrics (CH4/CO2)</TableHead>
+                        {viewMode === "establishment" && (
+                            <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Recorded By</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -323,6 +470,24 @@ export function WasteEntries() {
                           <TableCell>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-fit">
                               <div className="flex flex-col">
+                                <div className="flex items-center gap-1">
+                                  <HugeiconsIcon icon={ThermometerIcon} className="size-2.5 text-zinc-400" />
+                                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">Temp</span>
+                                </div>
+                                <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.temperature.toFixed(1)}°C</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1">
+                                  <HugeiconsIcon icon={DropletIcon} className="size-2.5 text-zinc-400" />
+                                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">Humid</span>
+                                </div>
+                                <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.humidity.toFixed(1)}%</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-fit">
+                              <div className="flex flex-col">
                                 <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">CH4</span>
                                 <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.methanePotential.toFixed(3)}</span>
                               </div>
@@ -332,6 +497,18 @@ export function WasteEntries() {
                               </div>
                             </div>
                           </TableCell>
+                          {viewMode === "establishment" && (
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-zinc-100 dark:bg-white/5 rounded-lg text-zinc-500">
+                                        <HugeiconsIcon icon={UserGroupIcon} className="size-3.5" />
+                                    </div>
+                                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                        {(entry as any).recordedBy}
+                                    </span>
+                                </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -344,7 +521,7 @@ export function WasteEntries() {
             {totalEntryPages > 1 && (
               <div className="flex items-center justify-between px-2 pt-6 border-t border-zinc-200 dark:border-white/10 mt-auto">
                 <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
-                  Showing logs {(entryPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(entryPage * ITEMS_PER_PAGE, entries.length)} of {entries.length}
+                  Showing logs {(entryPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(entryPage * ITEMS_PER_PAGE, activeEntries.length)} of {activeEntries.length}
                 </span>
                 <div className="flex gap-2">
                   <Button
