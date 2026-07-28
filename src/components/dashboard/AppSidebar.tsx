@@ -1,14 +1,10 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { 
-  DashboardCircleIcon, 
-  UserGroupIcon, 
-  Settings02Icon, 
+import {
+  DashboardCircleIcon,
+  UserGroupIcon,
   Logout01Icon,
-  CpuIcon,
-  AnalyticsUpIcon,
   Note01Icon,
-  Alert01Icon,
   Files01Icon,
 } from "@hugeicons/core-free-icons";
 import { 
@@ -43,17 +39,11 @@ const data = {
   navMain: [
     { title: "Dashboard", url: "/dashboard", icon: DashboardCircleIcon },
     { title: "Users", url: "/users", icon: UserGroupIcon },
-    { title: "IoT Devices", url: "/devices", icon: CpuIcon },
-    { title: "Waste Analytics", url: "/analytics", icon: AnalyticsUpIcon },
   ],
   navSecondary: [
     { title: "Waste Entry", url: "/waste-entries", icon: Note01Icon },
-    { title: "Alerts", url: "/alerts", icon: Alert01Icon },
     { title: "Reports", url: "/reports", icon: Files01Icon },
   ],
-  navSystem: [
-    { title: "Settings", url: "/settings", icon: Settings02Icon },
-  ]
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -159,37 +149,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* System Settings */}
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {data.navSystem.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      isActive={isActive}
-                      onClick={() => navigate(item.url)}
-                      tooltip={item.title}
-                      className={cn(
-                        "transition-all duration-300 rounded-xl px-3 h-11",
-                        isActive 
-                          ? "bg-cemo-primary text-white font-bold shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:bg-cemo-primary hover:text-white" 
-                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <HugeiconsIcon 
-                        icon={item.icon} 
-                        className={cn("size-5 shrink-0 transition-transform duration-300", isActive ? "text-white scale-105" : "group-hover:scale-110")} 
-                      />
-                      <span className="text-sm font-bold tracking-tight">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
       
       <SidebarFooter className="border-none">

@@ -1,17 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
-import { 
-  UserGroupIcon, 
-  AnalyticsUpIcon,
+import {
+  UserGroupIcon,
   Note01Icon,
-  DashboardCircleIcon,
   DatabaseIcon,
-  Leaf01Icon,
+  WeightScaleIcon,
   Building03Icon,
   UserCircleIcon
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
-import { StatsCard, RecentAlerts } from "~/components/dashboard/Stats";
+import { StatsCard, RecentActivity } from "~/components/dashboard/Stats";
 import { UserTable } from "~/components/dashboard/UserTable";
 import { getUsers, type UserProfile } from "~/lib/firestore/users";
 import { getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
@@ -45,9 +43,8 @@ function Dashboard() {
 
   const stats = useMemo(() => {
     const totalWeight = wasteEntries.reduce((sum, e) => sum + e.weightAdded, 0);
-    const totalCH4 = wasteEntries.reduce((sum, e) => sum + e.methanePotential, 0);
-    const totalCO2 = wasteEntries.reduce((sum, e) => sum + e.co2Potential, 0);
-    
+    const avgWeight = wasteEntries.length > 0 ? totalWeight / wasteEntries.length : 0;
+
     // User type breakdowns
     const individuals = users.filter(u => u.isIndividual);
     const establishments = users.filter(u => !u.isIndividual);
@@ -62,8 +59,7 @@ function Dashboard() {
 
     return {
       weight: totalWeight.toFixed(1),
-      ch4: totalCH4.toFixed(2),
-      co2: totalCO2.toFixed(2),
+      avgWeight: avgWeight.toFixed(2),
       entriesCount: wasteEntries.length,
       totalUsers: users.length,
       totalIndividuals: individuals.length,
@@ -119,15 +115,15 @@ function Dashboard() {
           icon={DatabaseIcon} 
           className="bg-cemo-primary/5 border-cemo-primary/20"
         />
-        <StatsCard 
-          title="CH4 Potential" 
-          value={loading ? "..." : stats.ch4} 
-          icon={Leaf01Icon} 
+        <StatsCard
+          title="Total Entries"
+          value={loading ? "..." : stats.entriesCount}
+          icon={Note01Icon}
         />
-        <StatsCard 
-          title="CO2 Potential" 
-          value={loading ? "..." : stats.co2} 
-          icon={AnalyticsUpIcon} 
+        <StatsCard
+          title="Avg. per Entry (kg)"
+          value={loading ? "..." : stats.avgWeight}
+          icon={WeightScaleIcon}
         />
       </div>
 
@@ -199,21 +195,7 @@ function Dashboard() {
         </div>
 
         <div className="space-y-8">
-          <RecentAlerts />
-          <div className="bg-gradient-to-br from-zinc-900 to-black dark:from-white/5 dark:to-white/[0.02] border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-cemo-primary/10 rounded-full blur-3xl" />
-            <h3 className="font-bold text-white mb-4 relative z-10">Network Integrity</h3>
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-400">Total Entries Processed</span>
-                <span className="text-cemo-primary font-bold">{stats.entriesCount}</span>
-              </div>
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-cemo-primary w-[100%]" />
-              </div>
-              <p className="text-[10px] text-zinc-500 mt-2">All environmental metrics are synchronized with Firestore subcollections.</p>
-            </div>
-          </div>
+          <RecentActivity entries={wasteEntries} users={users} loading={loading} />
         </div>
       </div>
     </DashboardLayout>

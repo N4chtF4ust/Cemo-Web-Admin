@@ -134,6 +134,38 @@ body {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/*
+ * Data-visualization roles. Series hues are validated for the lightness band,
+ * chroma floor, protan/deutan separation and >=3:1 contrast against the card
+ * surface in BOTH modes. The dark column is the same hues re-stepped for the
+ * dark surface, not an automatic flip.
+ *
+ * Note: --cemo-primary (#39ff14) is deliberately NOT a series color. At
+ * OKLCH L 0.87 it sits outside the band and lands at 1.36:1 on a white card,
+ * so it stays a UI accent (buttons, active nav) and never encodes data.
+ */
+.viz-root {
+  --viz-surface: #ffffff;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-ink: #0b0b0b;
+  --viz-ink-secondary: #52514e;
+}
+
+.dark .viz-root {
+  --viz-surface: #0a0a0a;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-muted: #898781;
+  --viz-ink: #ffffff;
+  --viz-ink-secondary: #c3c2b7;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

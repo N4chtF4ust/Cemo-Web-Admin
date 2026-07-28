@@ -4,7 +4,9 @@ import * as LoginPage from "./pages/Login";
 import * as DashboardPage from "./pages/Dashboard";
 import * as UsersPage from "./pages/Users";
 import * as WasteEntriesPage from "./pages/WasteEntries";
+import * as ReportsPage from "./pages/Reports";
 import * as ErrorPageModule from "./pages/ErrorPage";
+import ChartHarness from "./pages/__ChartHarness";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RootRoute } from "./components/RootRoute";
 
@@ -27,6 +29,7 @@ const Login = resolvePageComponent(LoginPage.Login ?? LoginPage.default, "Login"
 const Dashboard = resolvePageComponent(DashboardPage.Dashboard ?? DashboardPage.default, "Dashboard");
 const Users = resolvePageComponent(UsersPage.Users ?? UsersPage.default, "Users");
 const WasteEntries = resolvePageComponent(WasteEntriesPage.WasteEntries ?? WasteEntriesPage.default, "WasteEntries");
+const Reports = resolvePageComponent(ReportsPage.Reports ?? ReportsPage.default, "Reports");
 const ErrorPage = resolvePageComponent(
   ErrorPageModule.ErrorPage ?? ErrorPageModule.default,
   "ErrorPage",
@@ -61,6 +64,18 @@ const router = createBrowserRouter([
         <WasteEntries />
       </ProtectedRoute>
     ),
+  },
+  {
+    path: "/reports",
+    element: (
+      <ProtectedRoute>
+        <Reports />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/__chartcheck",
+    element: <ChartHarness />,
   },
   {
     path: "/login",

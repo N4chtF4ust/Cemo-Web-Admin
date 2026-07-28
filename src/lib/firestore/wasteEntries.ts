@@ -14,13 +14,16 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 
+/**
+ * Mirrors the mobile app's `WasteEntry` data class
+ * (app/src/main/java/com/example/cemo/data/model/WasteEntry.kt).
+ * Only fields the device actually writes belong here.
+ */
 export interface WasteEntry {
   id: string;
   weightAdded: number;
   category: string;
   timestamp: Date;
-  methanePotential: number;
-  co2Potential: number;
   humidity: number;
   temperature: number;
   userId?: string; // Added for cross-user identification
@@ -28,14 +31,13 @@ export interface WasteEntry {
 
 /**
  * Converts Firestore data to WasteEntry interface.
+ * The app stores `timestamp` as epoch millis, but tolerate a Firestore Timestamp too.
  */
 const mapToWasteEntry = (data: any, fallbackId?: string): WasteEntry => ({
   id: data.id || fallbackId || "",
   weightAdded: Number(data.weightAdded) || 0,
   category: data.category || "Others",
   timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : (data.timestamp ? new Date(data.timestamp) : new Date()),
-  methanePotential: Number(data.methanePotential) || 0,
-  co2Potential: Number(data.co2Potential) || 0,
   humidity: Number(data.humidity) || 0,
   temperature: Number(data.temperature) || 0,
 });

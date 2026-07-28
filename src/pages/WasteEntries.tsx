@@ -432,7 +432,6 @@ export function WasteEntries() {
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Category</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Weight (kg)</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Environment</TableHead>
-                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Metrics (CH4/CO2)</TableHead>
                         {viewMode === "establishment" && (
                             <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Recorded By</TableHead>
                         )}
@@ -482,18 +481,6 @@ export function WasteEntries() {
                                   <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">Humid</span>
                                 </div>
                                 <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.humidity.toFixed(1)}%</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-fit">
-                              <div className="flex flex-col">
-                                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">CH4</span>
-                                <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.methanePotential.toFixed(3)}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">CO2</span>
-                                <span className="text-[11px] text-zinc-900 dark:text-white font-medium">{entry.co2Potential.toFixed(3)}</span>
                               </div>
                             </div>
                           </TableCell>
