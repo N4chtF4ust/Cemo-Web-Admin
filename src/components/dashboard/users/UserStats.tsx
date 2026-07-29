@@ -35,15 +35,15 @@ function UserStats({ users }: UserStatsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-5 gap-3 sm:gap-4">
       {stats.map((stat, i) => (
-        <Card key={i} className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border-zinc-200 dark:border-white/[0.08] p-5 rounded-2xl shadow-sm group hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{stat.title}</p>
-              <p className="text-2xl font-bold text-zinc-900 dark:text-white">{stat.value}</p>
+        <Card key={i} className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border-zinc-200 dark:border-white/[0.08] p-4 sm:p-5 rounded-2xl shadow-sm group hover:shadow-md transition-all duration-300">
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">{stat.title}</p>
+              <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{stat.value}</p>
             </div>
-            <div className={cn("p-3 rounded-xl bg-zinc-100 dark:bg-white/5 group-hover:scale-110 transition-transform duration-300", stat.color)}>
+            <div className={cn("shrink-0 p-2.5 sm:p-3 rounded-xl bg-zinc-100 dark:bg-white/5 group-hover:scale-110 transition-transform duration-300", stat.color)}>
               <HugeiconsIcon icon={stat.icon} className="size-5" />
             </div>
           </div>

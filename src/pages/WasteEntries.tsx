@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
 import { getWasteEntries, getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
 import { getUsers, type UserProfile } from "~/lib/firestore/users";
@@ -47,7 +48,10 @@ interface EstablishmentSummary {
 }
 
 export function WasteEntries() {
-  const [viewMode, setViewMode] = useState<ViewMode>("individual");
+  const [searchParams] = useSearchParams();
+  const uidParam = searchParams.get("uid");
+  const estParam = searchParams.get("est");
+  const [viewMode, setViewMode] = useState<ViewMode>(estParam ? "establishment" : "individual");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedEstKey, setSelectedEstKey] = useState<string>("");
@@ -67,10 +71,9 @@ export function WasteEntries() {
     try {
       const data = await getUsers();
       setUsers(data);
-      if (data.length > 0 && !selectedUserId) {
-        const firstIndiv = data.find(u => u.isIndividual);
-        if (firstIndiv) setSelectedUserId(firstIndiv.uid);
-      }
+      const firstIndiv = data.find(u => u.isIndividual);
+      // Functional update so a deep-linked selection isn't clobbered by this default.
+      if (firstIndiv) setSelectedUserId(prev => prev || firstIndiv.uid);
     } catch (err: any) {
       console.error("WasteEntries: Error fetching users:", err);
       setError("Failed to load users.");
@@ -95,6 +98,13 @@ export function WasteEntries() {
     fetchUsers();
     fetchAllEntries();
   }, []);
+
+  // Global search deep link: jump straight to the requested user's logs.
+  useEffect(() => {
+    if (!uidParam) return;
+    setViewMode("individual");
+    setSelectedUserId(uidParam);
+  }, [uidParam]);
 
   const fetchEntries = async () => {
     if (!selectedUserId) return;
@@ -158,6 +168,18 @@ export function WasteEntries() {
         );
     }
   }, [individualUsers, establishments, search, viewMode]);
+
+  // Global search deep link: select the establishment named in the URL.
+  useEffect(() => {
+    if (!estParam || establishments.length === 0) return;
+    const match = establishments.find(
+      est => est.name.toLowerCase() === estParam.toLowerCase(),
+    );
+    if (match) {
+      setViewMode("establishment");
+      setSelectedEstKey(match.key);
+    }
+  }, [estParam, establishments]);
 
   const currentEst = establishments.find(e => e.key === selectedEstKey);
 
@@ -429,7 +451,6 @@ export function WasteEntries() {
                     <TableHeader>
                       <TableRow className="hover:bg-transparent border-zinc-200 dark:border-white/10">
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Timestamp</TableHead>
-                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Category</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Weight (kg)</TableHead>
                         <TableHead className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Environment</TableHead>
                         {viewMode === "establishment" && (
@@ -454,11 +475,6 @@ export function WasteEntries() {
                                 </span>
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 border-none rounded-lg text-[10px] font-bold uppercase tracking-tight px-2 py-1">
-                              {entry.category}
-                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">

@@ -5,6 +5,7 @@ import * as DashboardPage from "./pages/Dashboard";
 import * as UsersPage from "./pages/Users";
 import * as WasteEntriesPage from "./pages/WasteEntries";
 import * as ReportsPage from "./pages/Reports";
+import * as SettingsPage from "./pages/Settings";
 import * as ErrorPageModule from "./pages/ErrorPage";
 import ChartHarness from "./pages/__ChartHarness";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -30,6 +31,7 @@ const Dashboard = resolvePageComponent(DashboardPage.Dashboard ?? DashboardPage.
 const Users = resolvePageComponent(UsersPage.Users ?? UsersPage.default, "Users");
 const WasteEntries = resolvePageComponent(WasteEntriesPage.WasteEntries ?? WasteEntriesPage.default, "WasteEntries");
 const Reports = resolvePageComponent(ReportsPage.Reports ?? ReportsPage.default, "Reports");
+const Settings = resolvePageComponent(SettingsPage.Settings ?? SettingsPage.default, "Settings");
 const ErrorPage = resolvePageComponent(
   ErrorPageModule.ErrorPage ?? ErrorPageModule.default,
   "ErrorPage",
@@ -70,6 +72,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Reports />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/settings",
+    element: (
+      <ProtectedRoute>
+        <Settings />
       </ProtectedRoute>
     ),
   },

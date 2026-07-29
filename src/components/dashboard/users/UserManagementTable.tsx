@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Table, 
   TableBody, 
@@ -55,6 +55,8 @@ import { cn } from "~/lib/utils";
 interface UserManagementTableProps {
   users: UserProfile[];
   canModifyUsers?: boolean;
+  /** Seeds the table filter, e.g. from the navbar's global search. */
+  searchTerm?: string;
   onView: (user: UserProfile) => void;
   onEdit: (user: UserProfile) => void;
   onDelete: (uid: string) => void;
@@ -64,10 +66,31 @@ interface UserManagementTableProps {
 
 const PAGE_SIZE = 5;
 
-function UserManagementTable({ 
-  users, 
+/**
+ * Eight columns need ~1150px, but a 1024px laptop only leaves ~700px of content
+ * once the sidebar takes its 256px. Rather than force a horizontal scroll at
+ * every size below that, columns reveal themselves as room appears — keyed to
+ * the content container, so collapsing the sidebar widens the table too.
+ *
+ * Head and cell read the same constant so a column can never half-disappear.
+ * User / Role / Actions are always present; UID and the full address stay in
+ * the row's dropdown and detail sheet until there is genuinely space.
+ */
+const COLUMN_VISIBILITY = {
+  uid: "hidden @6xl:table-cell",
+  profileType: "hidden @3xl:table-cell",
+  establishment: "hidden @4xl:table-cell",
+  address: "hidden @6xl:table-cell",
+  joined: "hidden @2xl:table-cell",
+} as const;
+
+const HEAD_BASE = "px-4 sm:px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest";
+
+function UserManagementTable({
+  users,
   canModifyUsers = true,
-  onView, 
+  searchTerm,
+  onView,
   onEdit, 
   onDelete, 
   onRefresh,
@@ -78,6 +101,13 @@ function UserManagementTable({
   const [profileTypeFilter, setProfileTypeFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Apply an externally supplied query (global search deep link).
+  useEffect(() => {
+    if (searchTerm === undefined) return;
+    setSearch(searchTerm);
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const filteredAndSortedUsers = useMemo(() => {
     return users
@@ -141,9 +171,9 @@ function UserManagementTable({
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-1 items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col @5xl:flex-row @5xl:items-center justify-between gap-4">
+        <div className="flex flex-1 flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-[180px] @xl:max-w-sm">
             <HugeiconsIcon icon={Search01Icon} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
             <Input 
               placeholder="Search by name or email..." 
@@ -153,7 +183,7 @@ function UserManagementTable({
             />
           </div>
           <Select value={roleFilter} onValueChange={handleRoleChange}>
-            <SelectTrigger className="w-[150px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
+            <SelectTrigger className="flex-1 min-w-[132px] @xl:flex-none @xl:w-[150px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon icon={FilterIcon} className="size-3.5 text-zinc-400" />
                 <SelectValue placeholder="Role" />
@@ -166,7 +196,7 @@ function UserManagementTable({
             </SelectContent>
           </Select>
           <Select value={profileTypeFilter} onValueChange={handleProfileTypeChange}>
-            <SelectTrigger className="w-[170px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
+            <SelectTrigger className="flex-1 min-w-[132px] @xl:flex-none @xl:w-[170px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon icon={FilterIcon} className="size-3.5 text-zinc-400" />
                 <SelectValue placeholder="Profile Type" />
@@ -179,7 +209,7 @@ function UserManagementTable({
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={handleSortChange}>
-            <SelectTrigger className="w-[150px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
+            <SelectTrigger className="flex-1 min-w-[132px] @xl:flex-none @xl:w-[150px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon icon={Sorting05Icon} className="size-3.5 text-zinc-400" />
                 <SelectValue placeholder="Sort By" />
@@ -193,12 +223,12 @@ function UserManagementTable({
           </Select>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="icon" 
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="icon"
             onClick={onRefresh}
-            className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/5 transition-all"
+            className="shrink-0 rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/5 transition-all"
           >
             <HugeiconsIcon icon={Refresh01Icon} className="size-4" />
           </Button>
@@ -220,19 +250,20 @@ function UserManagementTable({
       </div>
 
       {/* Table Section */}
-      <div className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[520px]">
-        <div className="flex-1">
+      <div className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[420px] sm:min-h-[520px]">
+        {/* min-w-0 lets the table's own overflow-x-auto engage instead of stretching the card */}
+        <div className="flex-1 min-w-0">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-b border-zinc-200 dark:border-white/[0.05]">
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">User</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">UID</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Profile Type</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Establishment</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Role</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Joined</TableHead>
-                <TableHead className="px-6 py-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-right">Actions</TableHead>
+                <TableHead className={HEAD_BASE}>User</TableHead>
+                <TableHead className={cn(HEAD_BASE, COLUMN_VISIBILITY.uid)}>UID</TableHead>
+                <TableHead className={cn(HEAD_BASE, COLUMN_VISIBILITY.profileType)}>Profile Type</TableHead>
+                <TableHead className={cn(HEAD_BASE, COLUMN_VISIBILITY.establishment)}>Establishment</TableHead>
+                <TableHead className={cn(HEAD_BASE, COLUMN_VISIBILITY.address)}>Address</TableHead>
+                <TableHead className={HEAD_BASE}>Role</TableHead>
+                <TableHead className={cn(HEAD_BASE, COLUMN_VISIBILITY.joined)}>Joined</TableHead>
+                <TableHead className={cn(HEAD_BASE, "text-right")}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -243,7 +274,7 @@ function UserManagementTable({
 
                   return (
                     <TableRow key={user.uid} className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.01] transition-colors border-b border-zinc-200 dark:border-white/[0.05] group">
-                      <TableCell className="px-6 py-4">
+                      <TableCell className="px-4 sm:px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar className="size-9 border border-zinc-200/50 dark:border-white/10">
                             <AvatarImage src={user.photoUrl || ""} />
@@ -257,10 +288,14 @@ function UserManagementTable({
                             {!user.isIndividual && user.establishmentName && (
                               <span className="text-[10px] text-zinc-400 mt-1">{user.establishmentName}</span>
                             )}
+                            {/* Carries the account type while its own column is hidden */}
+                            <span className="@3xl:hidden text-[10px] font-bold uppercase tracking-wider text-zinc-400 mt-1">
+                              {user.isIndividual ? "Individual" : "Establishment"}
+                            </span>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell className={cn("px-4 sm:px-6 py-4", COLUMN_VISIBILITY.uid)}>
                         <div className="flex items-center gap-2 group/uid">
                           <code className="text-[10px] font-mono text-zinc-400 bg-zinc-100 dark:bg-white/5 px-2 py-0.5 rounded-md">
                             {user.uid.substring(0, 8)}...
@@ -273,7 +308,7 @@ function UserManagementTable({
                           </button>
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell className={cn("px-4 sm:px-6 py-4", COLUMN_VISIBILITY.profileType)}>
                         <Badge className={cn(
                           "text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 border",
                           user.isIndividual
@@ -283,13 +318,13 @@ function UserManagementTable({
                           {user.isIndividual ? "INDIVIDUAL" : "ESTABLISHMENT"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-xs text-zinc-500 font-medium">
+                      <TableCell className={cn("px-4 sm:px-6 py-4 text-xs text-zinc-500 font-medium", COLUMN_VISIBILITY.establishment)}>
                         {user.establishmentName || "N/A"}
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-xs text-zinc-500 font-medium max-w-[220px] truncate">
+                      <TableCell className={cn("px-4 sm:px-6 py-4 text-xs text-zinc-500 font-medium max-w-[220px] truncate", COLUMN_VISIBILITY.address)}>
                         {user.establishmentAddress || "N/A"}
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell className="px-4 sm:px-6 py-4">
                         <Badge className={cn(
                           "text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 border",
                           user.role === UserRole.ADMIN 
@@ -299,10 +334,10 @@ function UserManagementTable({
                           {user.role}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-xs text-zinc-500 font-medium">
+                      <TableCell className={cn("px-4 sm:px-6 py-4 text-xs text-zinc-500 font-medium", COLUMN_VISIBILITY.joined)}>
                         {user.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-right">
+                      <TableCell className="px-4 sm:px-6 py-4 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="size-8 p-0 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg text-zinc-400">
@@ -346,7 +381,7 @@ function UserManagementTable({
         </div>
 
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-zinc-200 dark:border-white/[0.05] bg-zinc-50/30 dark:bg-white/[0.01]">
+          <div className="px-4 sm:px-6 py-4 border-t border-zinc-200 dark:border-white/[0.05] bg-zinc-50/30 dark:bg-white/[0.01]">
             <Pagination>
               <PaginationContent>
                 <PaginationItem>

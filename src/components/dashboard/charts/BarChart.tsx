@@ -31,9 +31,14 @@ export function BarChart({ data, unit, digits = 1, labelWidth = 132 }: BarChartP
 
   const rowHeight = BAR_THICKNESS + ROW_GAP;
   const height = Math.max(data.length * rowHeight, rowHeight);
-  const valueGutter = 66;
-  const plotWidth = Math.max(width - labelWidth - valueGutter, 0);
+  // The label and value gutters yield to the bars as the card narrows — at a
+  // fixed 132 + 66 a phone-width chart is left with almost no plot to read.
+  const gutter = Math.min(labelWidth, Math.max(76, Math.round(width * 0.36)));
+  const valueGutter = width < 400 ? 46 : 66;
+  const plotWidth = Math.max(width - gutter - valueGutter, 0);
   const maxValue = Math.max(...data.map((d) => d.value), 0);
+  // ~5.8px per character at the 11px label size.
+  const maxLabelChars = Math.max(8, Math.floor((gutter - 12) / 5.8));
 
   if (width === 0) {
     return <div ref={wrapRef} style={{ height }} />;
@@ -51,7 +56,7 @@ export function BarChart({ data, unit, digits = 1, labelWidth = 132 }: BarChartP
     <div ref={wrapRef} className="relative">
       <svg width={width} height={height} role="img" aria-label={`Waste collected per contributor, in ${unit}`}>
         {/* Baseline the bars grow from */}
-        <line x1={labelWidth} y1={0} x2={labelWidth} y2={height} stroke="var(--viz-axis)" strokeWidth="1" />
+        <line x1={gutter} y1={0} x2={gutter} y2={height} stroke="var(--viz-axis)" strokeWidth="1" />
 
         {data.map((datum, i) => {
           const y = i * rowHeight + ROW_GAP / 2;
@@ -75,24 +80,26 @@ export function BarChart({ data, unit, digits = 1, labelWidth = 132 }: BarChartP
               <rect x={0} y={i * rowHeight + (rowHeight - hitHeight) / 2} width={width} height={hitHeight} fill="transparent" />
 
               <text
-                x={labelWidth - 12}
+                x={gutter - 12}
                 y={y + BAR_THICKNESS / 2 + 4}
                 textAnchor="end"
                 fill="var(--viz-ink-secondary)"
                 className="text-[11px]"
               >
-                {datum.label.length > 18 ? `${datum.label.slice(0, 17)}…` : datum.label}
+                {datum.label.length > maxLabelChars
+                  ? `${datum.label.slice(0, maxLabelChars - 1)}…`
+                  : datum.label}
               </text>
 
               <path
-                d={barPath(labelWidth, y, barWidth, BAR_THICKNESS, 4, "horizontal")}
+                d={barPath(gutter, y, barWidth, BAR_THICKNESS, 4, "horizontal")}
                 fill={SERIES_1}
                 opacity={isHovered ? 0.85 : 1}
               />
 
               {/* Value rides outside the bar end, so it is never clipped by a short bar */}
               <text
-                x={labelWidth + barWidth + 10}
+                x={gutter + barWidth + 10}
                 y={y + BAR_THICKNESS / 2 + 4}
                 fill="var(--viz-ink)"
                 className="text-[11px] font-bold"
@@ -112,7 +119,11 @@ export function BarChart({ data, unit, digits = 1, labelWidth = 132 }: BarChartP
         return (
           <div
             className="pointer-events-none absolute z-20 rounded-xl border border-zinc-200 dark:border-white/10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm px-3 py-2 shadow-lg"
-            style={{ left: Math.min(labelWidth + 16, Math.max(width - 200, 0)), top: index * rowHeight - 6 }}
+            style={{
+              left: Math.min(gutter + 16, Math.max(width - 180, 0)),
+              top: index * rowHeight - 6,
+              maxWidth: Math.max(width - 16, 0),
+            }}
           >
             <p className="text-xs font-bold text-zinc-900 dark:text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
               {datum.value.toFixed(digits)} {unit}

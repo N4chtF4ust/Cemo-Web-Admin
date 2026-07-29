@@ -6,6 +6,7 @@ import {
   Logout01Icon,
   Note01Icon,
   Files01Icon,
+  Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { 
   Sidebar, 
@@ -35,7 +36,13 @@ import appIconSrc from "~/assets/icon.png";
 import { auth } from "~/lib/firebase";
 import { signOut } from "firebase/auth";
 
-const data = {
+interface NavEntry {
+  title: string;
+  url: string;
+  icon: typeof DashboardCircleIcon;
+}
+
+const data: { navMain: NavEntry[]; navSecondary: NavEntry[] } = {
   navMain: [
     { title: "Dashboard", url: "/dashboard", icon: DashboardCircleIcon },
     { title: "Users", url: "/users", icon: UserGroupIcon },
@@ -43,8 +50,59 @@ const data = {
   navSecondary: [
     { title: "Waste Entry", url: "/waste-entries", icon: Note01Icon },
     { title: "Reports", url: "/reports", icon: Files01Icon },
+    { title: "Settings", url: "/settings", icon: Settings02Icon },
   ],
 };
+
+/**
+ * Every nav row renders through here so the two groups cannot drift apart.
+ *
+ * Idle and hover states use the sidebar tokens (--sidebar-accent) rather than
+ * fixed zinc values, which kept them tied to the panel surface instead of the
+ * page background. Active rows are black-on-primary, matching the primary
+ * buttons elsewhere in the console; white on #39ff14 is barely legible.
+ */
+function NavItem({
+  item,
+  isActive,
+  onSelect,
+}: {
+  item: NavEntry;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={isActive}
+        onClick={onSelect}
+        tooltip={item.title}
+        className={cn(
+          // Named group so the hover effect is scoped to this row, not the
+          // whole sidebar (the bare `group` class belongs to the sidebar root).
+          "group/nav h-11 rounded-xl px-3 transition-colors duration-200",
+          isActive
+            ? // Marked important: the base button ships data-active:bg-sidebar-accent,
+              // which is emitted later in the stylesheet at equal specificity and
+              // would otherwise repaint the active row in the accent grey.
+              "bg-cemo-primary! text-black! font-bold! shadow-[0_0_20px_rgba(57,255,20,0.25)]"
+            : "text-zinc-500 dark:text-zinc-400 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        )}
+      >
+        {/* No colour of its own: the icon inherits the row's text colour, so it
+            can never end up dark-on-dark if the row styling changes. */}
+        <HugeiconsIcon
+          icon={item.icon}
+          className={cn(
+            "size-5 shrink-0 transition-transform duration-200",
+            !isActive && "group-hover/nav:scale-110",
+          )}
+        />
+        <span className="text-sm font-bold tracking-tight">{item.title}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate();
@@ -60,7 +118,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon" className="border-none" {...props}>
+    <Sidebar
+      variant="sidebar"
+      collapsible="icon"
+      className="border-r border-zinc-200 dark:border-white/[0.08]"
+      {...props}
+    >
       <SidebarHeader className="h-20 flex justify-center">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -85,31 +148,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navMain.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      isActive={isActive}
-                      onClick={() => navigate(item.url)}
-                      tooltip={item.title}
-                      className={cn(
-                        "transition-all duration-300 rounded-xl px-3 h-11",
-                        isActive 
-                          ? "bg-cemo-primary text-white font-bold shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:bg-cemo-primary hover:text-white" 
-                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <HugeiconsIcon 
-                        icon={item.icon} 
-
-                        className={cn("size-5 shrink-0 transition-transform duration-300", isActive ? "text-white scale-105" : "group-hover:scale-110")} 
-                      />
-                      <span className="text-sm font-bold tracking-tight">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {data.navMain.map((item) => (
+                <NavItem
+                  key={item.title}
+                  item={item}
+                  isActive={location.pathname === item.url}
+                  onSelect={() => navigate(item.url)}
+                />
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -121,30 +167,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navSecondary.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      isActive={isActive}
-                      onClick={() => navigate(item.url)}
-                      tooltip={item.title}
-                      className={cn(
-                        "transition-all duration-300 rounded-xl px-3 h-11",
-                        isActive 
-                          ? "bg-cemo-primary text-white font-bold shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:bg-cemo-primary hover:text-white" 
-                          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <HugeiconsIcon 
-                        icon={item.icon} 
-                        className={cn("size-5 shrink-0 transition-transform duration-300", isActive ? "text-white scale-105" : "group-hover:scale-110")} 
-                      />
-                      <span className="text-sm font-bold tracking-tight">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {data.navSecondary.map((item) => (
+                <NavItem
+                  key={item.title}
+                  item={item}
+                  isActive={location.pathname === item.url}
+                  onSelect={() => navigate(item.url)}
+                />
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -156,11 +186,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <SidebarMenuButton 
-                  className="text-red-500 hover:bg-red-500/10 hover:text-red-500 transition-all rounded-xl px-3 h-11 group"
+                <SidebarMenuButton
+                  className="group/nav h-11 rounded-xl px-3 text-red-500 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                   tooltip="Sign Out"
                 >
-                  <HugeiconsIcon icon={Logout01Icon} className="size-5 shrink-0 group-hover:rotate-12 transition-transform duration-300" />
+                  <HugeiconsIcon
+                    icon={Logout01Icon}
+                    className="size-5 shrink-0 transition-transform duration-200 group-hover/nav:rotate-12"
+                  />
                   <span className="text-sm font-bold tracking-tight">Sign Out</span>
                 </SidebarMenuButton>
               </AlertDialogTrigger>

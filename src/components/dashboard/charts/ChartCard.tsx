@@ -25,13 +25,13 @@ export function ChartCard({ title, subtitle, table, children, className, refresh
   return (
     <div
       className={cn(
-        "viz-root bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-6 shadow-sm",
+        "viz-root bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-4 sm:p-6 shadow-sm overflow-hidden",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h3 className="font-bold text-base text-zinc-900 dark:text-white">{title}</h3>
+      <div className="flex items-start justify-between gap-3 mb-4 sm:mb-6">
+        <div className="min-w-0">
+          <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-white">{title}</h3>
           {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
         </div>
         <button

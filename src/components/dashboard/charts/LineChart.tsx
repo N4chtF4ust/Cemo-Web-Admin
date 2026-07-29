@@ -24,6 +24,9 @@ interface LineChartProps {
 }
 
 const PAD = { top: 16, right: 20, bottom: 30, left: 52 };
+/** Same frame, tighter gutters — a phone-width plot can't spare 72px of padding. */
+const COMPACT_PAD = { top: 12, right: 10, bottom: 26, left: 40 };
+const COMPACT_WIDTH = 420;
 
 export function LineChart({
   labels,
@@ -37,8 +40,12 @@ export function LineChart({
   const [wrapRef, width] = useMeasure<HTMLDivElement>();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const plotWidth = Math.max(width - PAD.left - PAD.right, 0);
-  const plotHeight = Math.max(height - PAD.top - PAD.bottom, 0);
+  const compact = width > 0 && width < COMPACT_WIDTH;
+  const pad = compact ? COMPACT_PAD : PAD;
+  const chartHeight = compact ? Math.max(Math.round(height * 0.8), 160) : height;
+
+  const plotWidth = Math.max(width - pad.left - pad.right, 0);
+  const plotHeight = Math.max(chartHeight - pad.top - pad.bottom, 0);
 
   const maxValue = useMemo(() => {
     const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
@@ -50,16 +57,19 @@ export function LineChart({
 
   const count = labels.length;
   const stepX = count > 1 ? plotWidth / (count - 1) : 0;
-  const xAt = (i: number) => PAD.left + (count > 1 ? i * stepX : plotWidth / 2);
-  const yAt = (v: number) => PAD.top + plotHeight - (v / scaleMax) * plotHeight;
+  const xAt = (i: number) => pad.left + (count > 1 ? i * stepX : plotWidth / 2);
+  const yAt = (v: number) => pad.top + plotHeight - (v / scaleMax) * plotHeight;
 
-  // Show at most ~8 x-axis ticks so labels never collide.
-  const tickStride = Math.max(1, Math.ceil(count / 8));
+  // Cap x-axis ticks by the space each label actually needs, so they never
+  // collide once the plot narrows. Never more than 8, even when there is room.
+  const labelSlot = compact ? 46 : 64;
+  const maxTicks = Math.min(8, Math.max(2, Math.floor(plotWidth / labelSlot)));
+  const tickStride = Math.max(1, Math.ceil(count / maxTicks));
 
   const handlePointer = (event: React.PointerEvent<SVGSVGElement>) => {
     if (count === 0 || plotWidth <= 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left - PAD.left;
+    const x = event.clientX - rect.left - pad.left;
     const index = count > 1 ? Math.round(x / stepX) : 0;
     setHoverIndex(Math.min(Math.max(index, 0), count - 1));
   };
@@ -73,7 +83,7 @@ export function LineChart({
   return (
     <div ref={wrapRef} className="relative">
       {series.length > 1 && (
-        <div className="flex items-center gap-5 mb-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-4">
           {series.map((s) => (
             <div key={s.key} className="flex items-center gap-2">
               <svg width="14" height="2" aria-hidden="true">
@@ -87,7 +97,7 @@ export function LineChart({
 
       <svg
         width={width}
-        height={height}
+        height={chartHeight}
         role="img"
         aria-label={`${series.map((s) => s.label).join(" and ")} over time, in ${unit}`}
         onPointerMove={handlePointer}
@@ -98,15 +108,15 @@ export function LineChart({
         {ticks.map((tick) => (
           <g key={tick}>
             <line
-              x1={PAD.left}
+              x1={pad.left}
               y1={yAt(tick)}
-              x2={PAD.left + plotWidth}
+              x2={pad.left + plotWidth}
               y2={yAt(tick)}
               stroke="var(--viz-grid)"
               strokeWidth="1"
             />
             <text
-              x={PAD.left - 10}
+              x={pad.left - 10}
               y={yAt(tick) + 4}
               textAnchor="end"
               fill="var(--viz-muted)"
@@ -120,37 +130,43 @@ export function LineChart({
 
         {/* Baseline */}
         <line
-          x1={PAD.left}
-          y1={PAD.top + plotHeight}
-          x2={PAD.left + plotWidth}
-          y2={PAD.top + plotHeight}
+          x1={pad.left}
+          y1={pad.top + plotHeight}
+          x2={pad.left + plotWidth}
+          y2={pad.top + plotHeight}
           stroke="var(--viz-axis)"
           strokeWidth="1"
         />
 
-        {/* X ticks */}
-        {labels.map((label, i) =>
-          i % tickStride === 0 ? (
+        {/* X ticks — edge labels anchor inward so a narrow plot never clips them */}
+        {labels.map((label, i) => {
+          if (i % tickStride !== 0) return null;
+          const x = xAt(i);
+          // Only re-anchor when a centered label would actually run past the SVG edge
+          // (~2.9px per character at the 10px tick size), so desktop stays centered.
+          const half = label.length * 2.9;
+          const anchor = x - half < 2 ? "start" : x + half > width - 2 ? "end" : "middle";
+          return (
             <text
               key={`${label}-${i}`}
-              x={xAt(i)}
-              y={PAD.top + plotHeight + 18}
-              textAnchor="middle"
+              x={x}
+              y={pad.top + plotHeight + 18}
+              textAnchor={anchor}
               fill="var(--viz-muted)"
               className="text-[10px]"
             >
               {label}
             </text>
-          ) : null,
-        )}
+          );
+        })}
 
         {/* Crosshair sits under the marks */}
         {hoverIndex !== null && hasData && (
           <line
             x1={xAt(hoverIndex)}
-            y1={PAD.top}
+            y1={pad.top}
             x2={xAt(hoverIndex)}
-            y2={PAD.top + plotHeight}
+            y2={pad.top + plotHeight}
             stroke="var(--viz-axis)"
             strokeWidth="1"
           />
@@ -176,7 +192,7 @@ export function LineChart({
                 segments.map((segment, si) => {
                   if (segment.length < 2) return null;
                   const top = segment.map((p) => `${xAt(p.i)},${yAt(p.v)}`).join(" L");
-                  const baseline = PAD.top + plotHeight;
+                  const baseline = pad.top + plotHeight;
                   return (
                     <path
                       key={`area-${si}`}
@@ -235,8 +251,8 @@ export function LineChart({
 
         {!hasData && (
           <text
-            x={PAD.left + plotWidth / 2}
-            y={PAD.top + plotHeight / 2}
+            x={pad.left + plotWidth / 2}
+            y={pad.top + plotHeight / 2}
             textAnchor="middle"
             fill="var(--viz-muted)"
             className="text-xs"
@@ -250,9 +266,13 @@ export function LineChart({
         <div
           className="pointer-events-none absolute z-20 rounded-xl border border-zinc-200 dark:border-white/10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm px-3 py-2 shadow-lg"
           style={{
-            left: Math.min(Math.max(xAt(hoverIndex) - 70, 0), Math.max(width - 150, 0)),
+            left: Math.min(
+              Math.max(xAt(hoverIndex) - (compact ? 60 : 70), 0),
+              Math.max(width - (compact ? 128 : 150), 0),
+            ),
             top: 0,
-            minWidth: 140,
+            minWidth: compact ? 118 : 140,
+            maxWidth: width,
           }}
         >
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1.5">

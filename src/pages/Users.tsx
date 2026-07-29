@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import type { ComponentType } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
 import * as UserStatsModule from "~/components/dashboard/users/UserStats";
 import * as UserManagementTableModule from "~/components/dashboard/users/UserManagementTable";
@@ -41,6 +42,7 @@ const SafeUserStats = resolveComponent<{ users: UserProfile[] }>(UserStats, "Use
 const SafeUserManagementTable = resolveComponent<{
   users: UserProfile[];
   canModifyUsers?: boolean;
+  searchTerm?: string;
   onView: (user: UserProfile) => void;
   onEdit: (user: UserProfile) => void;
   onDelete: (uid: string) => void;
@@ -61,6 +63,10 @@ const SafeUserDetails = resolveComponent<{
 
 function Users() {
   const canModifyUsers = false;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const uidParam = searchParams.get("uid");
+  const queryParam = searchParams.get("q");
+  const estParam = searchParams.get("est");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,34 @@ function Users() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Global search deep link: focus the establishment list on the requested one.
+  useEffect(() => {
+    if (estParam === null) return;
+    setEstablishmentSearch(estParam);
+    setEstablishmentPage(1);
+    setExpandedEstablishmentKey(null);
+  }, [estParam]);
+
+  // Global search deep link: open the profile of the requested user once loaded.
+  // The param is consumed so selecting the same result again re-triggers it.
+  useEffect(() => {
+    if (!uidParam || users.length === 0) return;
+
+    const match = users.find((user) => user.uid === uidParam);
+    if (!match) return;
+
+    setSelectedUser(match);
+    setIsDetailsOpen(true);
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params);
+        next.delete("uid");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [uidParam, users, setSearchParams]);
 
   const handleAddUser = () => {
     setSelectedUser(null);
@@ -234,16 +268,16 @@ function Users() {
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-1">
-        <h2 className="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Users</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Users</h2>
         <p className="text-zinc-500 text-sm">Manage registered accounts and permissions</p>
       </div>
 
       {loading ? (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="space-y-6 lg:space-y-8">
+          <div className="grid grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-5 gap-3 sm:gap-4">
             {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
           </div>
-          <Skeleton className="h-[500px] w-full rounded-2xl" />
+          <Skeleton className="h-[420px] sm:h-[500px] w-full rounded-2xl" />
         </div>
       ) : error ? (
         <div className="mt-8 p-12 bg-red-500/5 border border-red-500/20 rounded-2xl text-center flex flex-col items-center gap-4">
@@ -262,13 +296,13 @@ function Users() {
           </button>
         </div>
       ) : (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
           <SafeUserStats users={users} />
           <div className="space-y-3">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              <div className="flex items-center justify-between lg:justify-start gap-3">
+            <div className="flex flex-col @3xl:flex-row @3xl:items-center @3xl:justify-between gap-3">
+              <div className="flex items-center justify-between @3xl:justify-start gap-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500">Establishments</h3>
-                <span className="text-xs font-medium text-zinc-400">
+                <span className="text-xs font-medium text-zinc-400 shrink-0">
                   {establishmentSummaries.length} registered
                 </span>
               </div>
@@ -281,13 +315,13 @@ function Users() {
                     setExpandedEstablishmentKey(null);
                   }}
                   placeholder="Search establishment or linked user..."
-                  className="w-full lg:w-[280px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]"
+                  className="min-w-0 flex-1 @3xl:flex-none @3xl:w-[280px] rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02]"
                 />
                 <button
                   type="button"
                   onClick={() => setEstablishmentPage((page) => Math.max(1, page - 1))}
                   disabled={establishmentPage === 1}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border border-zinc-200 dark:border-white/10 text-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold border border-zinc-200 dark:border-white/10 text-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Prev
                 </button>
@@ -295,7 +329,7 @@ function Users() {
                   type="button"
                   onClick={() => setEstablishmentPage((page) => Math.min(establishmentTotalPages, page + 1))}
                   disabled={establishmentPage === establishmentTotalPages}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border border-zinc-200 dark:border-white/10 text-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold border border-zinc-200 dark:border-white/10 text-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -305,14 +339,14 @@ function Users() {
               Page {establishmentPage} of {establishmentTotalPages}
             </div>
             {pagedEstablishments.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-3">
                 {pagedEstablishments.map((establishment) => (
                   <div
                     key={establishment.key}
                     className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white/70 dark:bg-white/[0.03] p-4"
                   >
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white">{establishment.name}</p>
-                    <p className="text-xs text-zinc-500 mt-1">{establishment.address}</p>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white break-words">{establishment.name}</p>
+                    <p className="text-xs text-zinc-500 mt-1 break-words">{establishment.address}</p>
                     <button
                       type="button"
                       onClick={() =>
@@ -339,8 +373,8 @@ function Users() {
                               onClick={() => handleViewUser(linkedUser)}
                               className="w-full text-left rounded-lg px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-white/5"
                             >
-                              <p className="text-xs font-bold text-zinc-900 dark:text-white">{linkedUserName}</p>
-                              <p className="text-[11px] text-zinc-500">{linkedUser.email}</p>
+                              <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{linkedUserName}</p>
+                              <p className="text-[11px] text-zinc-500 truncate">{linkedUser.email}</p>
                             </button>
                           );
                         })}
@@ -355,9 +389,10 @@ function Users() {
               </div>
             )}
           </div>
-          <SafeUserManagementTable 
-            users={users} 
+          <SafeUserManagementTable
+            users={users}
             canModifyUsers={canModifyUsers}
+            searchTerm={queryParam ?? undefined}
             onView={handleViewUser}
             onEdit={handleEditUser}
             onDelete={handleDeleteUser}

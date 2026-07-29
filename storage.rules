@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Mirrors the rules deployed on the Firebase console. Avatar objects must be
+// named `{uid}.{ext}` - see src/lib/storage/avatarPaths.ts, which builds the
+// matching path on the client.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /avatars/{fileName} {
+      allow read: if request.auth != null;
+
+      allow delete: if request.auth != null
+                    && fileName.matches(request.auth.uid + '\\.(webp|jpg|jpeg|png)');
+
+      allow write: if request.auth != null
+                   && fileName.matches(request.auth.uid + '\\.(webp|jpg|jpeg|png)')
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

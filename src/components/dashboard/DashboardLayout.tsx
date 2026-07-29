@@ -8,10 +8,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="bg-zinc-50 dark:bg-black transition-colors duration-500 flex flex-col min-h-screen">
+        {/*
+         * The shell is exactly one viewport tall and `main` is the only scroll
+         * container. Previously the inset was `min-h-screen`, so `main` had no
+         * bounded height, its `overflow-y-auto` never engaged and the document
+         * itself scrolled — which dragged the navbar and sidebar out of view on
+         * long pages (Users being the longest).
+         */}
+        <SidebarInset className="bg-zinc-100 dark:bg-black transition-colors duration-500 flex flex-col h-svh overflow-hidden">
           <Navbar />
-          <main className="flex-1 p-8 overflow-y-auto">
-            <div className="max-w-[1600px] mx-auto space-y-8 relative z-10">
+          <main className="flex-1 min-h-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden overflow-y-auto">
+            {/*
+             * Container, not viewport, drives the layout below: the sidebar eats
+             * 256px (48px collapsed) of a `md:` viewport, so a 768px tablet only
+             * has ~464px of content — narrower than the phone breakpoint above it.
+             */}
+            <div className="@container max-w-[1600px] mx-auto space-y-6 lg:space-y-8 relative z-10">
               {children}
             </div>
           </main>

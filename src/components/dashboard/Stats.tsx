@@ -16,19 +16,19 @@ interface StatsCardProps {
 export function StatsCard({ title, value, icon, className }: StatsCardProps) {
   return (
     <div className={cn(
-      "bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group overflow-hidden relative",
+      "bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all group overflow-hidden relative",
       className
     )}>
       {/* Decorative background glow */}
       <div className="absolute -right-4 -top-4 size-24 bg-cemo-primary/5 rounded-full blur-2xl group-hover:bg-cemo-primary/10 transition-colors" />
-      
-      <div className="flex items-start justify-between relative z-10">
-        <div className="space-y-3">
-          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{title}</p>
-          <h3 className="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">{value}</h3>
+
+      <div className="flex items-start justify-between gap-2 relative z-10">
+        <div className="space-y-2 sm:space-y-3 min-w-0">
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider sm:tracking-widest">{title}</p>
+          <h3 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight truncate">{value}</h3>
         </div>
-        <div className="p-3 bg-zinc-100 dark:bg-white/5 rounded-xl border border-zinc-200/50 dark:border-white/10 group-hover:scale-110 transition-transform">
-          <HugeiconsIcon icon={icon} className="size-6 text-zinc-900 dark:text-white" />
+        <div className="shrink-0 p-2.5 sm:p-3 bg-zinc-100 dark:bg-white/5 rounded-xl border border-zinc-200/50 dark:border-white/10 group-hover:scale-110 transition-transform">
+          <HugeiconsIcon icon={icon} className="size-5 sm:size-6 text-zinc-900 dark:text-white" />
         </div>
       </div>
     </div>
@@ -82,7 +82,7 @@ export function RecentActivity({ entries, users, loading }: RecentActivityProps)
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-sm font-bold text-zinc-900 dark:text-white truncate">
-                      {entry.weightAdded.toFixed(2)} kg · {entry.category}
+                      {entry.weightAdded.toFixed(2)} kg
                     </h4>
                     <span className="text-[10px] text-zinc-500 font-medium shrink-0">
                       {formatDistanceToNow(entry.timestamp, { addSuffix: true })}

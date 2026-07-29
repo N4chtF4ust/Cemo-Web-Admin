@@ -22,7 +22,6 @@ import { db } from "../firebase";
 export interface WasteEntry {
   id: string;
   weightAdded: number;
-  category: string;
   timestamp: Date;
   humidity: number;
   temperature: number;
@@ -36,7 +35,6 @@ export interface WasteEntry {
 const mapToWasteEntry = (data: any, fallbackId?: string): WasteEntry => ({
   id: data.id || fallbackId || "",
   weightAdded: Number(data.weightAdded) || 0,
-  category: data.category || "Others",
   timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : (data.timestamp ? new Date(data.timestamp) : new Date()),
   humidity: Number(data.humidity) || 0,
   temperature: Number(data.temperature) || 0,

@@ -222,8 +222,8 @@ export function Reports() {
   return (
     <DashboardLayout>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Reports</h2>
+        <div className="flex flex-col gap-1 min-w-0">
+          <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Reports</h2>
           <p className="text-zinc-500 text-sm">
             Collection volume, contributors and sensor conditions from the CEMO devices.
           </p>
@@ -250,7 +250,7 @@ export function Reports() {
             onClick={() => setRangeKey(range.key)}
             aria-pressed={rangeKey === range.key}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border",
+              "px-3 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all border whitespace-nowrap",
               rangeKey === range.key
                 ? "bg-cemo-primary text-black border-cemo-primary shadow-[0_0_15px_rgba(57,255,20,0.2)]"
                 : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5",
@@ -262,21 +262,21 @@ export function Reports() {
       </div>
 
       {loading ? (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="space-y-6 lg:space-y-8">
+          <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-32 rounded-2xl" />
+              <Skeleton key={i} className="h-28 sm:h-32 rounded-2xl" />
             ))}
           </div>
-          <Skeleton className="h-[420px] rounded-2xl" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-[360px] sm:h-[420px] rounded-2xl" />
+          <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-4 lg:gap-6">
             <Skeleton className="h-[320px] rounded-2xl" />
             <Skeleton className="h-[320px] rounded-2xl" />
           </div>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <StatsCard title="Waste Collected (kg)" value={stats.totalWeight} icon={DatabaseIcon} className="bg-cemo-primary/5 border-cemo-primary/20" />
             <StatsCard title="Entries" value={stats.entryCount} icon={Note01Icon} />
             <StatsCard title="Contributors" value={stats.contributors} icon={UserGroupIcon} />
@@ -301,7 +301,8 @@ export function Reports() {
             <LineChart labels={labels} fullLabels={fullLabels} series={volumeSeries} unit="kg" height={320} digits={2} />
           </ChartCard>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Two time-series side by side need ~440px each; below that they stack. */}
+          <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-4 lg:gap-6">
             <ChartCard
               title="Top contributors"
               subtitle="Total kilograms logged in the selected range."
@@ -314,7 +315,7 @@ export function Reports() {
               <BarChart data={contributors} unit="kg" digits={2} />
             </ChartCard>
 
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 gap-4 lg:gap-6">
               {/* Two measures, two scales -> two charts. Never a shared second axis. */}
               <ChartCard
                 title="Average temperature"
