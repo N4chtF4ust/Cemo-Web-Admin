@@ -35,21 +35,24 @@ import { cn } from "~/lib/utils";
 import appIconSrc from "~/assets/icon.png";
 import { auth } from "~/lib/firebase";
 import { signOut } from "firebase/auth";
+import { useCurrentAdmin } from "~/hooks/useCurrentAdmin";
+import { UserRole } from "~/lib/firestore/users";
 
 interface NavEntry {
   title: string;
   url: string;
   icon: typeof DashboardCircleIcon;
+  adminOnly?: boolean;
 }
 
 const data: { navMain: NavEntry[]; navSecondary: NavEntry[] } = {
   navMain: [
     { title: "Dashboard", url: "/dashboard", icon: DashboardCircleIcon },
-    { title: "Users", url: "/users", icon: UserGroupIcon },
+    { title: "Users", url: "/users", icon: UserGroupIcon, adminOnly: true },
   ],
   navSecondary: [
     { title: "Waste Entry", url: "/waste-entries", icon: Note01Icon },
-    { title: "Reports", url: "/reports", icon: Files01Icon },
+    { title: "Reports", url: "/reports", icon: Files01Icon, adminOnly: true },
     { title: "Settings", url: "/settings", icon: Settings02Icon },
   ],
 };
@@ -107,6 +110,11 @@ function NavItem({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile } = useCurrentAdmin();
+  const isAdmin = profile?.role === UserRole.ADMIN;
+
+  const visibleNavMain = data.navMain.filter((item) => !item.adminOnly || isAdmin);
+  const visibleNavSecondary = data.navSecondary.filter((item) => !item.adminOnly || isAdmin);
 
   const handleSignOut = async () => {
     try {
@@ -148,7 +156,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navMain.map((item) => (
+              {visibleNavMain.map((item) => (
                 <NavItem
                   key={item.title}
                   item={item}
@@ -167,7 +175,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navSecondary.map((item) => (
+              {visibleNavSecondary.map((item) => (
                 <NavItem
                   key={item.title}
                   item={item}

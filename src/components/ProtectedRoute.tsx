@@ -6,48 +6,50 @@ import { ErrorPage } from "~/pages/ErrorPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  allowedRoles?: UserRole[];
 }
 
 /**
- * A wrapper component that restricts access to Admin users only.
- * If the user is unauthenticated or does not have the ADMIN role, 
- * it renders the ErrorPage with the appropriate HTTP status code.
+ * A wrapper component that enforces route-level authentication and role authorization.
+ * If the user is unauthenticated -> 401 Unauthorized.
+ * If the user role is not in allowedRoles -> 403 Forbidden.
  */
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ 
+  children, 
+  allowedRoles = [UserRole.ADMIN, UserRole.STAFF] 
+}: ProtectedRouteProps) {
   const [loading, setLoading] = useState(true);
   const [authState, setAuthState] = useState<{
     isLoggedIn: boolean;
-    isAdmin: boolean;
+    hasPermission: boolean;
   }>({
     isLoggedIn: false,
-    isAdmin: false,
+    hasPermission: false,
   });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        setAuthState({ isLoggedIn: false, isAdmin: false });
+        setAuthState({ isLoggedIn: false, hasPermission: false });
         setLoading(false);
         return;
       }
 
       try {
         const profile = await getUserProfile(user.uid);
-        if (profile?.role === UserRole.ADMIN) {
-          setAuthState({ isLoggedIn: true, isAdmin: true });
-        } else {
-          setAuthState({ isLoggedIn: true, isAdmin: false });
-        }
+        const userRole = profile?.role;
+        const permitted = !!userRole && allowedRoles.includes(userRole);
+        setAuthState({ isLoggedIn: true, hasPermission: permitted });
       } catch (error) {
         console.error("Auth verification failed:", error);
-        setAuthState({ isLoggedIn: true, isAdmin: false });
+        setAuthState({ isLoggedIn: true, hasPermission: false });
       } finally {
         setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [allowedRoles]);
 
   if (loading) {
     return (
@@ -65,11 +67,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <ErrorPage errorCode={401} />;
   }
 
-  // 2. Logged In but Not Admin -> 403 Forbidden
-  if (!authState.isAdmin) {
+  // 2. Logged In but Role Not Permitted -> 403 Forbidden
+  if (!authState.hasPermission) {
     return <ErrorPage errorCode={403} />;
   }
 
-  // 3. Authorized Admin
+  // 3. Authorized
   return <>{children}</>;
 }

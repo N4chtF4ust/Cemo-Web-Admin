@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { UserProfile } from "./firestore/users";
+import { UserRole, type UserProfile } from "./firestore/users";
 import type { WasteEntry } from "./firestore/wasteEntries";
 
 export type SearchResultKind = "page" | "user" | "establishment" | "entry";
@@ -194,6 +194,26 @@ export const buildSearchIndex = (users: UserProfile[], entries: WasteEntry[]): S
   ...buildEstablishmentResults(users),
   ...buildEntryResults(entries, users),
 ];
+
+/**
+ * Filters the search index so that staff (and non-admins) cannot search for
+ * users or navigate to admin-only pages (/users and /reports).
+ */
+export const filterSearchIndexByRole = (
+  index: SearchResult[],
+  role?: UserRole | null,
+): SearchResult[] => {
+  if (role === UserRole.ADMIN) {
+    return index;
+  }
+
+  return index.filter(
+    (item) =>
+      item.kind !== "user" &&
+      !item.url.startsWith("/users") &&
+      !item.url.startsWith("/reports"),
+  );
+};
 
 /** Returns the best matches for `query`, highest score first. */
 export const searchIndex = (

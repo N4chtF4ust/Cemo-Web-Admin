@@ -66,7 +66,7 @@ function Login() {
       const [
         { signInWithEmailAndPassword, signOut },
         { auth },
-        { getUserProfile, UserRole },
+        { getUserProfile, getUserProfileByEmail, createUserProfile, deleteUserProfile, UserRole },
       ] = await Promise.all([
         import("firebase/auth"),
         import("~/lib/firebase"),
@@ -75,22 +75,45 @@ function Login() {
 
       const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
 
-      const existingProfile = await getUserProfile(credential.user.uid);
+      let existingProfile = await getUserProfile(credential.user.uid);
       if (!existingProfile) {
-        await signOut(auth);
-        throw new Error("User profile not found. Please contact an administrator.");
+        // Recovery mechanism: check if a profile exists by email (e.g. from prior creation with mismatched UID)
+        const emailMatch = await getUserProfileByEmail(normalizedEmail);
+        if (emailMatch) {
+          existingProfile = await createUserProfile({
+            ...emailMatch,
+            uid: credential.user.uid,
+          });
+          if (emailMatch.uid !== credential.user.uid) {
+            await deleteUserProfile(emailMatch.uid).catch(() => {});
+          }
+        } else {
+          // Auto-provision missing staff profile so the authenticated user can immediately log in
+          existingProfile = await createUserProfile({
+            uid: credential.user.uid,
+            email: normalizedEmail,
+            displayName: credential.user.displayName || normalizedEmail.split("@")[0],
+            firstName: null,
+            lastName: null,
+            photoUrl: credential.user.photoURL || null,
+            role: UserRole.STAFF,
+            isIndividual: true,
+            establishmentName: null,
+            establishmentAddress: null,
+          });
+        }
       }
 
-      if (existingProfile.role !== UserRole.ADMIN) {
+      if (existingProfile.role !== UserRole.ADMIN && existingProfile.role !== UserRole.STAFF) {
         await signOut(auth);
-        throw new Error("Unauthorized access. Only administrators can login.");
+        throw new Error("Unauthorized access. Only administrators and staff can login.");
       }
 
       navigate("/");
     } catch (error) {
       if (error instanceof Error && (
         error.message === "User profile not found. Please contact an administrator." ||
-        error.message === "Unauthorized access. Only administrators can login."
+        error.message === "Unauthorized access. Only administrators and staff can login."
       )) {
         setErrorMessage(error.message);
       } else {

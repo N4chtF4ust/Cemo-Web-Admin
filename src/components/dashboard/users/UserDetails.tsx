@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { 
   Sheet, 
   SheetContent, 
@@ -9,6 +10,8 @@ import { Badge } from "~/components/ui/badge";
 import { Separator } from "~/components/ui/separator";
 import { UserRole } from "~/lib/firestore/users";
 import type { UserProfile } from "~/lib/firestore/users";
+import { sendStaffPasswordReset } from "~/lib/authStaff";
+import { getAuthErrorMessage } from "~/lib/authErrors";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { 
   Mail01Icon, 
@@ -33,6 +36,27 @@ function UserDetails({ isOpen, onClose, user }: UserDetailsProps) {
     user.displayName ||
     user.email.split("@")[0];
 
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    setResetFeedback(null);
+  }, [user]);
+
+  const handleSendReset = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    setResetFeedback(null);
+    try {
+      await sendStaffPasswordReset(user.email);
+      setResetFeedback({ tone: "success", message: `Password setup link sent to ${user.email}!` });
+    } catch (err: any) {
+      setResetFeedback({ tone: "error", message: getAuthErrorMessage(err) });
+    } finally {
+      setSendingReset(false);
+    }
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl border-l border-zinc-200 dark:border-white/10 sm:max-w-[450px]">
@@ -51,7 +75,13 @@ function UserDetails({ isOpen, onClose, user }: UserDetailsProps) {
                 {fullName}
               </h3>
               <p className="text-zinc-500 font-medium">{user.displayName || "No display name"}</p>
-              <Badge className={user.role === UserRole.ADMIN ? "bg-cemo-primary/20 text-cemo-primary border-cemo-primary/30 mt-2" : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10 mt-2"}>
+              <Badge className={
+                user.role === UserRole.ADMIN 
+                  ? "bg-cemo-primary/20 text-cemo-primary border-cemo-primary/30 mt-2" 
+                  : user.role === UserRole.STAFF
+                    ? "bg-blue-500/20 text-blue-500 border-blue-500/30 mt-2"
+                    : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10 mt-2"
+              }>
                 {user.role}
               </Badge>
             </div>
@@ -96,9 +126,27 @@ function UserDetails({ isOpen, onClose, user }: UserDetailsProps) {
               <div className="p-2 rounded-lg bg-zinc-100 dark:bg-white/5 text-zinc-500">
                 <HugeiconsIcon icon={Mail01Icon} className="size-5" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1">
                 <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Email Address</p>
                 <p className="text-sm font-bold text-zinc-900 dark:text-white">{user.email}</p>
+                {Boolean(user.email) && (
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      disabled={sendingReset}
+                      onClick={handleSendReset}
+                      className="text-xs text-cemo-primary hover:underline font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <HugeiconsIcon icon={Mail01Icon} className="size-3.5" />
+                      <span>{sendingReset ? "Sending email..." : "Send Password Setup / Reset Email"}</span>
+                    </button>
+                    {resetFeedback && (
+                      <p className={`text-[11px] mt-1 font-medium ${resetFeedback.tone === "success" ? "text-cemo-primary" : "text-red-500"}`}>
+                        {resetFeedback.message}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

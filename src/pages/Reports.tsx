@@ -10,6 +10,7 @@ import {
   DropletIcon,
   Refresh01Icon,
   AlertCircleIcon,
+  Download01Icon,
 } from "@hugeicons/core-free-icons";
 import { DashboardLayout } from "~/components/dashboard/DashboardLayout";
 import { StatsCard } from "~/components/dashboard/Stats";
@@ -20,8 +21,18 @@ import { SERIES_1, SERIES_2 } from "~/components/dashboard/charts/chartUtils";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
-import { getUsers, type UserProfile } from "~/lib/firestore/users";
+import { UserRole, getUsers, type UserProfile } from "~/lib/firestore/users";
+import { useCurrentAdmin } from "~/hooks/useCurrentAdmin";
+import { ErrorPage } from "~/pages/ErrorPage";
+import { exportReportsToExcel } from "~/lib/exportExcel";
 import { cn } from "~/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 
 const RANGES = [
   { key: "7", label: "Last 7 days", days: 7 },
@@ -42,12 +53,17 @@ interface Bucket {
 }
 
 export function Reports() {
+  const { profile, loading: authLoading } = useCurrentAdmin();
+  const isAdmin = profile?.role === UserRole.ADMIN;
+
   const [entries, setEntries] = useState<WasteEntry[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rangeKey, setRangeKey] = useState("30");
+  const [accountFilter, setAccountFilter] = useState<"all" | "individual" | "establishment">("all");
+  const [exporting, setExporting] = useState(false);
 
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -72,13 +88,24 @@ export function Reports() {
 
   const activeRange = RANGES.find((r) => r.key === rangeKey) ?? RANGES[1];
 
-  /** Entries inside the selected window. Every chart and stat below reads from this slice. */
+  const individualUids = useMemo(() => new Set(users.filter((u) => u.isIndividual).map((u) => u.uid)), [users]);
+  const establishmentUids = useMemo(() => new Set(users.filter((u) => !u.isIndividual).map((u) => u.uid)), [users]);
+
+  /** Entries inside the selected window and matching account filter. Every chart and stat below reads from this slice. */
   const scopedEntries = useMemo(() => {
-    if (activeRange.days === null) return entries;
-    const cutoff = startOfDay(new Date());
-    cutoff.setDate(cutoff.getDate() - (activeRange.days - 1));
-    return entries.filter((e) => e.timestamp >= cutoff);
-  }, [entries, activeRange]);
+    let list = entries;
+    if (activeRange.days !== null) {
+      const cutoff = startOfDay(new Date());
+      cutoff.setDate(cutoff.getDate() - (activeRange.days - 1));
+      list = list.filter((e) => e.timestamp >= cutoff);
+    }
+    if (accountFilter === "individual") {
+      list = list.filter((e) => e.userId && individualUids.has(e.userId));
+    } else if (accountFilter === "establishment") {
+      list = list.filter((e) => e.userId && establishmentUids.has(e.userId));
+    }
+    return list;
+  }, [entries, activeRange, accountFilter, individualUids, establishmentUids]);
 
   /** Day buckets, or week buckets once the window is too wide to label per day. */
   const { buckets, granularity } = useMemo(() => {
@@ -185,10 +212,22 @@ export function Reports() {
   const avg = (values: number[]) =>
     values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
 
-  const volumeSeries = [
-    { key: "individual", label: "Individual", color: SERIES_1, values: buckets.map((b) => b.individual) },
-    { key: "establishment", label: "Establishment", color: SERIES_2, values: buckets.map((b) => b.establishment) },
-  ];
+  const volumeSeries = useMemo(() => {
+    if (accountFilter === "individual") {
+      return [
+        { key: "individual", label: "Individual", color: SERIES_1, values: buckets.map((b) => b.individual) },
+      ];
+    }
+    if (accountFilter === "establishment") {
+      return [
+        { key: "establishment", label: "Establishment", color: SERIES_2, values: buckets.map((b) => b.establishment) },
+      ];
+    }
+    return [
+      { key: "individual", label: "Individual", color: SERIES_1, values: buckets.map((b) => b.individual) },
+      { key: "establishment", label: "Establishment", color: SERIES_2, values: buckets.map((b) => b.establishment) },
+    ];
+  }, [buckets, accountFilter]);
 
   const tempSeries = [
     { key: "temperature", label: "Avg. temperature", color: SERIES_1, values: buckets.map((b) => avg(b.temps)) },
@@ -199,6 +238,33 @@ export function Reports() {
   ];
 
   const bucketLabel = granularity === "week" ? "Week" : "Date";
+
+  const handleExportExcel = () => {
+    try {
+      setExporting(true);
+      exportReportsToExcel({
+        buckets,
+        scopedEntries,
+        users,
+        rangeLabel: activeRange.label,
+        accountFilter,
+        stats,
+      });
+    } catch (err) {
+      console.error("Reports: export to Excel failed:", err);
+      alert("Failed to export reports to Excel.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (!authLoading && !isAdmin) {
+    return (
+      <DashboardLayout>
+        <ErrorPage errorCode={403} />
+      </DashboardLayout>
+    );
+  }
 
   if (error) {
     return (
@@ -228,37 +294,65 @@ export function Reports() {
             Collection volume, contributors and sensor conditions from the CEMO devices.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit"
-        >
-          <HugeiconsIcon icon={Refresh01Icon} className="size-4" />
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportExcel}
+            disabled={loading || scopedEntries.length === 0 || exporting}
+            className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit font-bold text-xs"
+          >
+            <HugeiconsIcon icon={Download01Icon} className="size-4" />
+            {exporting ? "Exporting…" : "Export to Excel"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => load(true)}
+            disabled={refreshing}
+            className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit font-bold text-xs"
+          >
+            <HugeiconsIcon icon={Refresh01Icon} className="size-4" />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       {/* One filter row, above everything it scopes */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mr-1">Range</span>
-        {RANGES.map((range) => (
-          <button
-            key={range.key}
-            type="button"
-            onClick={() => setRangeKey(range.key)}
-            aria-pressed={rangeKey === range.key}
-            className={cn(
-              "px-3 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all border whitespace-nowrap",
-              rangeKey === range.key
-                ? "bg-cemo-primary text-black border-cemo-primary shadow-[0_0_15px_rgba(57,255,20,0.2)]"
-                : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5",
-            )}
-          >
-            {range.label}
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mr-1">Range</span>
+          {RANGES.map((range) => (
+            <button
+              key={range.key}
+              type="button"
+              onClick={() => setRangeKey(range.key)}
+              aria-pressed={rangeKey === range.key}
+              className={cn(
+                "px-3 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all border whitespace-nowrap",
+                rangeKey === range.key
+                  ? "bg-cemo-primary text-black border-cemo-primary shadow-[0_0_15px_rgba(57,255,20,0.2)]"
+                  : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5",
+              )}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mr-1">Account</span>
+          <Select value={accountFilter} onValueChange={(val: "all" | "individual" | "establishment") => setAccountFilter(val)}>
+            <SelectTrigger className="h-8 min-w-[140px] text-xs font-semibold rounded-xl bg-white/70 dark:bg-white/[0.03] border-zinc-200 dark:border-white/10 px-3">
+              <SelectValue placeholder="All Accounts" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-zinc-200 dark:border-white/10">
+              <SelectItem value="all">All Accounts</SelectItem>
+              <SelectItem value="individual">Individual</SelectItem>
+              <SelectItem value="establishment">Establishment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {loading ? (
@@ -285,17 +379,32 @@ export function Reports() {
 
           <ChartCard
             title="Waste collected over time"
-            subtitle={`Kilograms per ${granularity}, split by account type.`}
+            subtitle={
+              accountFilter === "all"
+                ? `Kilograms per ${granularity}, split by account type.`
+                : `Kilograms per ${granularity} from ${accountFilter} accounts.`
+            }
             refreshing={refreshing}
             table={{
-              columns: [bucketLabel, "Individual (kg)", "Establishment (kg)", "Total (kg)", "Entries"],
-              rows: buckets.map((b) => [
-                b.full,
-                b.individual.toFixed(2),
-                b.establishment.toFixed(2),
-                (b.individual + b.establishment).toFixed(2),
-                b.entries,
-              ]),
+              columns:
+                accountFilter === "individual"
+                  ? [bucketLabel, "Individual (kg)", "Entries"]
+                  : accountFilter === "establishment"
+                    ? [bucketLabel, "Establishment (kg)", "Entries"]
+                    : [bucketLabel, "Individual (kg)", "Establishment (kg)", "Total (kg)", "Entries"],
+              rows: buckets.map((b) =>
+                accountFilter === "individual"
+                  ? [b.full, b.individual.toFixed(2), b.entries]
+                  : accountFilter === "establishment"
+                    ? [b.full, b.establishment.toFixed(2), b.entries]
+                    : [
+                        b.full,
+                        b.individual.toFixed(2),
+                        b.establishment.toFixed(2),
+                        (b.individual + b.establishment).toFixed(2),
+                        b.entries,
+                      ],
+              ),
             }}
           >
             <LineChart labels={labels} fullLabels={fullLabels} series={volumeSeries} unit="kg" height={320} digits={2} />

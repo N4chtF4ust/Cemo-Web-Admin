@@ -46,10 +46,25 @@ import {
   Sorting05Icon,
   Download01Icon,
   Refresh01Icon,
-  UserAdd01Icon
+  UserAdd01Icon,
+  CheckmarkCircle02Icon,
+  AlertCircleIcon,
 } from "@hugeicons/core-free-icons";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog";
 import { UserRole } from "~/lib/firestore/users";
 import type { UserProfile } from "~/lib/firestore/users";
+import { sendStaffPasswordReset } from "~/lib/authStaff";
+import { getAuthErrorMessage } from "~/lib/authErrors";
+import { exportUsersToExcel } from "~/lib/exportExcel";
 import { cn } from "~/lib/utils";
 
 interface UserManagementTableProps {
@@ -61,7 +76,8 @@ interface UserManagementTableProps {
   onEdit: (user: UserProfile) => void;
   onDelete: (uid: string) => void;
   onRefresh: () => void;
-  onAdd: () => void;
+  onAdd?: () => void;
+  onResetPassword?: (user: UserProfile) => void | Promise<void>;
 }
 
 const PAGE_SIZE = 5;
@@ -94,13 +110,66 @@ function UserManagementTable({
   onEdit, 
   onDelete, 
   onRefresh,
-  onAdd
+  onAdd,
+  onResetPassword,
 }: UserManagementTableProps) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [profileTypeFilter, setProfileTypeFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [resetTargetUser, setResetTargetUser] = useState<UserProfile | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetNotice, setResetNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = () => {
+    try {
+      setIsExporting(true);
+      exportUsersToExcel(filteredAndSortedUsers);
+    } catch (err) {
+      console.error("Export to Excel failed:", err);
+      alert("Failed to export users to Excel.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleConfirmResetPassword = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!resetTargetUser) return;
+    if (!resetTargetUser.email) {
+      setResetNotice({
+        tone: "error",
+        message: "This user does not have an email address.",
+      });
+      setResetTargetUser(null);
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      if (onResetPassword) {
+        await onResetPassword(resetTargetUser);
+      } else {
+        await sendStaffPasswordReset(resetTargetUser.email);
+      }
+      setResetNotice({
+        tone: "success",
+        message: `Password reset email sent to ${resetTargetUser.email}.`,
+      });
+      setResetTargetUser(null);
+    } catch (err: any) {
+      console.error("UserManagementTable: reset password failed:", err);
+      setResetNotice({
+        tone: "error",
+        message: getAuthErrorMessage(err),
+      });
+      setResetTargetUser(null);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
 
   // Apply an externally supplied query (global search deep link).
   useEffect(() => {
@@ -170,6 +239,35 @@ function UserManagementTable({
 
   return (
     <div className="space-y-6">
+      {resetNotice && (
+        <div
+          className={cn(
+            "flex items-center justify-between p-4 rounded-2xl text-xs sm:text-sm font-medium border shadow-sm transition-all animate-in fade-in duration-300",
+            resetNotice.tone === "success"
+              ? "bg-cemo-primary/10 border-cemo-primary/20 text-zinc-900 dark:text-white"
+              : "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <HugeiconsIcon
+              icon={resetNotice.tone === "success" ? CheckmarkCircle02Icon : AlertCircleIcon}
+              className={cn(
+                "size-5 shrink-0",
+                resetNotice.tone === "success" ? "text-cemo-primary" : "text-red-500"
+              )}
+            />
+            <span>{resetNotice.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResetNotice(null)}
+            className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white font-bold px-2 py-1 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header & Controls */}
       <div className="flex flex-col @5xl:flex-row @5xl:items-center justify-between gap-4">
         <div className="flex flex-1 flex-wrap items-center gap-2 sm:gap-3">
@@ -192,6 +290,7 @@ function UserManagementTable({
             <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
               <SelectItem value="ALL">All Roles</SelectItem>
               <SelectItem value={UserRole.ADMIN}>Administrators</SelectItem>
+              <SelectItem value={UserRole.STAFF}>Staff Members</SelectItem>
               <SelectItem value={UserRole.USER}>Standard Users</SelectItem>
             </SelectContent>
           </Select>
@@ -234,18 +333,22 @@ function UserManagementTable({
           </Button>
           <Button 
             variant="outline" 
+            onClick={handleExport}
+            disabled={isExporting || filteredAndSortedUsers.length === 0}
             className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/5 transition-all font-bold gap-2 text-xs"
           >
             <HugeiconsIcon icon={Download01Icon} className="size-4" />
-            Export
+            {isExporting ? "Exporting..." : "Export"}
           </Button>
-          <Button 
-            onClick={onAdd}
-            className="rounded-xl bg-cemo-primary text-black hover:bg-cemo-primary/90 transition-all font-bold gap-2 text-xs shadow-[0_0_15px_rgba(57,255,20,0.2)]"
-          >
-            <HugeiconsIcon icon={UserAdd01Icon} className="size-4" />
-            Add User
-          </Button>
+          {onAdd && (
+            <Button 
+              onClick={onAdd}
+              className="rounded-xl bg-cemo-primary text-black hover:bg-cemo-primary/90 transition-all font-bold gap-2 text-xs shadow-[0_0_15px_rgba(57,255,20,0.2)]"
+            >
+              <HugeiconsIcon icon={UserAdd01Icon} className="size-4" />
+              Add User
+            </Button>
+          )}
         </div>
       </div>
 
@@ -329,7 +432,9 @@ function UserManagementTable({
                           "text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 border",
                           user.role === UserRole.ADMIN 
                             ? "bg-cemo-primary/20 text-cemo-primary border-cemo-primary/30" 
-                            : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10"
+                            : user.role === UserRole.STAFF
+                              ? "bg-blue-500/20 text-blue-500 border-blue-500/30"
+                              : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10"
                         )}>
                           {user.role}
                         </Badge>
@@ -355,7 +460,14 @@ function UserManagementTable({
                               <span className="font-bold text-xs">Copy UID</span>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-zinc-100 dark:bg-white/5" />
-                            <DropdownMenuItem className="rounded-xl gap-2 focus:bg-zinc-100 dark:focus:bg-white/5 cursor-pointer py-2.5">
+                            <DropdownMenuItem 
+                              disabled={!user.email}
+                              onClick={() => {
+                                setResetNotice(null);
+                                setResetTargetUser(user);
+                              }}
+                              className="rounded-xl gap-2 focus:bg-zinc-100 dark:focus:bg-white/5 cursor-pointer py-2.5 disabled:opacity-50"
+                            >
                               <HugeiconsIcon icon={Mail01Icon} className="size-4" />
                               <span className="font-bold text-xs">Reset Password</span>
                             </DropdownMenuItem>
@@ -452,6 +564,44 @@ function UserManagementTable({
           </div>
         )}
       </div>
+
+      <AlertDialog 
+        open={Boolean(resetTargetUser)} 
+        onOpenChange={(open) => {
+          if (!open && !resettingPassword) setResetTargetUser(null);
+        }}
+      >
+        <AlertDialogContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-2xl p-6 shadow-2xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-zinc-900 dark:text-white font-bold text-lg">
+              Reset User Password
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-500 text-xs leading-relaxed">
+              Are you sure you want to send a password reset email to{" "}
+              <span className="font-bold text-zinc-900 dark:text-white">
+                {resetTargetUser?.email}
+              </span>
+              ? The user will receive instructions with a secure link to set a new password.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel
+              disabled={resettingPassword}
+              onClick={() => setResetTargetUser(null)}
+              className="rounded-xl border-zinc-200 dark:border-white/10 text-xs font-bold"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resettingPassword}
+              onClick={handleConfirmResetPassword}
+              className="rounded-xl bg-cemo-primary text-black hover:bg-cemo-primary/90 font-bold text-xs shadow-[0_0_15px_rgba(57,255,20,0.2)]"
+            >
+              {resettingPassword ? "Sending..." : "Send Reset Email"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -8,13 +8,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
+import { useCurrentAdmin } from "~/hooks/useCurrentAdmin";
 
 export function UserTable() {
+  const { profile } = useCurrentAdmin();
+  const isAdmin = profile?.role === UserRole.ADMIN;
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
     const fetchUsers = async () => {
       try {
         const data = await getUsers();
@@ -28,7 +36,11 @@ export function UserTable() {
     };
 
     fetchUsers();
-  }, []);
+  }, [isAdmin]);
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-200 dark:border-white/[0.08] rounded-2xl shadow-sm overflow-hidden">
@@ -90,7 +102,9 @@ export function UserTable() {
                         "text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 border",
                         user.role === UserRole.ADMIN 
                           ? "bg-cemo-primary/20 text-cemo-primary border-cemo-primary/30" 
-                          : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10"
+                          : user.role === UserRole.STAFF
+                            ? "bg-blue-500/20 text-blue-500 border-blue-500/30"
+                            : "bg-zinc-100 dark:bg-white/5 text-zinc-500 border-zinc-200/50 dark:border-white/10"
                       )}>
                         {user.role}
                       </Badge>

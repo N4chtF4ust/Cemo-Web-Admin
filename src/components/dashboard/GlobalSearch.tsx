@@ -10,16 +10,18 @@ import {
   Loading03Icon,
   AlertCircleIcon,
 } from "@hugeicons/core-free-icons";
-import { getUsers, type UserProfile } from "~/lib/firestore/users";
+import { UserRole, getUsers, type UserProfile } from "~/lib/firestore/users";
 import { getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
 import {
   buildSearchIndex,
+  filterSearchIndexByRole,
   groupResults,
   searchIndex,
   SEARCH_KIND_LABELS,
   type SearchResult,
   type SearchResultKind,
 } from "~/lib/globalSearch";
+import { useCurrentAdmin } from "~/hooks/useCurrentAdmin";
 import { cn } from "~/lib/utils";
 
 const KIND_ICONS: Record<SearchResultKind, typeof Search01Icon> = {
@@ -62,6 +64,8 @@ export function GlobalSearch() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { profile } = useCurrentAdmin();
+  const isAdmin = profile?.role === UserRole.ADMIN;
 
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -90,7 +94,10 @@ export function GlobalSearch() {
       .finally(() => setLoading(false));
   };
 
-  const index = useMemo(() => buildSearchIndex(users, entries), [users, entries]);
+  const index = useMemo(
+    () => filterSearchIndexByRole(buildSearchIndex(users, entries), profile?.role),
+    [users, entries, profile?.role],
+  );
   const results = useMemo(() => searchIndex(index, query), [index, query]);
   const groups = useMemo(() => groupResults(results), [results]);
 
@@ -129,6 +136,9 @@ export function GlobalSearch() {
   }, [loaded, loading]);
 
   const goTo = (result: SearchResult) => {
+    if (!isAdmin && (result.url.startsWith("/users") || result.url.startsWith("/reports"))) {
+      return;
+    }
     setIsOpen(false);
     setQuery("");
     inputRef.current?.blur();

@@ -79,7 +79,7 @@ export function Navbar() {
                 {accountName}
               </span>
               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">
-                {profile?.role === UserRole.ADMIN ? "System Manager" : "Account"}
+                {profile?.role === UserRole.ADMIN ? "System Manager" : profile?.role === UserRole.STAFF ? "Staff Member" : "Account"}
               </span>
             </div>
             <div className="size-10 rounded-xl bg-gradient-to-br from-cemo-primary/20 to-cemo-primary/5 p-px border border-cemo-primary/20 group-hover:scale-105 transition-transform">

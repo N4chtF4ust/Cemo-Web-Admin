@@ -11,6 +11,8 @@ export const getAuthErrorMessage = (error: unknown): string => {
   switch (code) {
     case "auth/invalid-email":
       return "That email address is not valid.";
+    case "auth/user-not-found":
+      return "No user account was found with that email address.";
     case "auth/email-already-in-use":
       return "That email address is already linked to another account.";
     case "auth/missing-password":

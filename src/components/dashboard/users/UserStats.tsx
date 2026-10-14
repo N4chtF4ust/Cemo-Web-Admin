@@ -18,7 +18,17 @@ function UserStats({ users }: UserStatsProps) {
   const totalUsers = users.length;
   const adminUsers = users.filter(u => u.role === UserRole.ADMIN).length;
   const individualUsers = users.filter((u) => u.isIndividual).length;
-  const establishmentUsers = totalUsers - individualUsers;
+  
+  // Calculate unique actual establishments
+  const establishmentMap = new Set<string>();
+  users
+    .filter((u) => !u.isIndividual)
+    .forEach((u) => {
+      const name = (u.establishmentName || "Unnamed Establishment").trim().toLowerCase();
+      const address = (u.establishmentAddress || "No address provided").trim().toLowerCase();
+      establishmentMap.add(`${name}::${address}`);
+    });
+  const totalEstablishments = establishmentMap.size;
   
   const now = new Date();
   const recentlyUpdated = users.filter(u => {
@@ -30,7 +40,7 @@ function UserStats({ users }: UserStatsProps) {
     { title: "Total Users", value: totalUsers, icon: UserGroupIcon, color: "text-blue-500" },
     { title: "Admin Users", value: adminUsers, icon: UserCircleIcon, color: "text-purple-500" },
     { title: "Individual Users", value: individualUsers, icon: UserGroupIcon, color: "text-emerald-500" },
-    { title: "Establishments", value: establishmentUsers, icon: UserAdd01Icon, color: "text-cemo-primary" },
+    { title: "Establishments", value: totalEstablishments, icon: UserAdd01Icon, color: "text-cemo-primary" },
     { title: "Recently Updated", value: recentlyUpdated, icon: Clock01Icon, color: "text-orange-500" },
   ];
 

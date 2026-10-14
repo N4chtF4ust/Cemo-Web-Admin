@@ -11,10 +11,11 @@ service cloud.firestore {
       // Users can read their own profile, admins can read all
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
 
-      // Creation: Users can create their own profile, but MUST be a 'USER'
-      allow create: if request.auth != null && 
-                    request.auth.uid == userId && 
-                    request.resource.data.role == 'USER';
+      // Creation: Users can create their own profile, or admins can create staff
+      allow create: if request.auth != null && (
+        (request.auth.uid == userId && (request.resource.data.role == 'USER' || request.resource.data.role == 'STAFF')) ||
+        isAdmin()
+      );
 
       // Update: 
       allow update: if request.auth != null && (

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildSearchIndex,
+  filterSearchIndexByRole,
   groupResults,
   searchIndex,
   PAGE_RESULTS,
@@ -159,5 +160,34 @@ describe("globalSearch", () => {
   it("always includes every page in the index", () => {
     const index = buildSearchIndex([], []);
     expect(index.slice(0, PAGE_RESULTS.length)).toEqual(PAGE_RESULTS);
+  });
+
+  it("retains all results when filtering index for ADMIN role", () => {
+    const users = [
+      makeUser({ uid: "u1", firstName: "Alice" }),
+      makeUser({ uid: "u2", isIndividual: false, establishmentName: "Cafe" }),
+    ];
+    const index = buildSearchIndex(users, [makeEntry()]);
+    const filtered = filterSearchIndexByRole(index, UserRole.ADMIN);
+    expect(filtered.length).toBe(index.length);
+  });
+
+  it("excludes /users, /reports, user results, and establishment results for STAFF role", () => {
+    const users = [
+      makeUser({ uid: "u1", firstName: "Alice" }),
+      makeUser({ uid: "u2", isIndividual: false, establishmentName: "Cafe" }),
+    ];
+    const index = buildSearchIndex(users, [makeEntry()]);
+    const filtered = filterSearchIndexByRole(index, UserRole.STAFF);
+
+    // No user kind results
+    expect(filtered.some((r) => r.kind === "user")).toBe(false);
+    // No URLs pointing to /users or /reports
+    expect(filtered.some((r) => r.url.startsWith("/users"))).toBe(false);
+    expect(filtered.some((r) => r.url.startsWith("/reports"))).toBe(false);
+    // Accessible pages and entries should remain
+    expect(filtered.some((r) => r.url === "/dashboard")).toBe(true);
+    expect(filtered.some((r) => r.url === "/waste-entries")).toBe(true);
+    expect(filtered.some((r) => r.kind === "entry")).toBe(true);
   });
 });

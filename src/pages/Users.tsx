@@ -14,10 +14,17 @@ import {
   UserRole,
 } from "~/lib/firestore/users";
 import type { UserProfile } from "~/lib/firestore/users";
+import { compressImage, AVATAR_MAX_DIMENSION, AVATAR_QUALITY } from "~/lib/imageCompression";
+import { uploadAvatar } from "~/lib/storage/avatars";
+import { createStaffAuthAccount, sendStaffPasswordReset } from "~/lib/authStaff";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AlertCircleIcon } from "@hugeicons/core-free-icons";
+import { AlertCircleIcon, CheckmarkCircle02Icon, Download01Icon } from "@hugeicons/core-free-icons";
+import { useCurrentAdmin } from "~/hooks/useCurrentAdmin";
+import { ErrorPage } from "~/pages/ErrorPage";
+import { exportUsersToExcel } from "~/lib/exportExcel";
 
 const UserStats = UserStatsModule.UserStats ?? UserStatsModule.default;
 const UserManagementTable = UserManagementTableModule.UserManagementTable ?? UserManagementTableModule.default;
@@ -47,12 +54,13 @@ const SafeUserManagementTable = resolveComponent<{
   onEdit: (user: UserProfile) => void;
   onDelete: (uid: string) => void;
   onRefresh: () => void;
-  onAdd: () => void;
+  onAdd?: () => void;
+  onResetPassword?: (user: UserProfile) => void | Promise<void>;
 }>(UserManagementTable, "UserManagementTable");
 const SafeUserDialog = resolveComponent<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Partial<UserProfile>) => Promise<void>;
+  onSave: (data: Partial<UserProfile>, avatarFile?: File | null) => Promise<void>;
   user: UserProfile | null;
 }>(UserDialog, "UserDialog");
 const SafeUserDetails = resolveComponent<{
@@ -62,6 +70,8 @@ const SafeUserDetails = resolveComponent<{
 }>(UserDetails, "UserDetails");
 
 function Users() {
+  const { profile, loading: authLoading } = useCurrentAdmin();
+  const isAdmin = profile?.role === UserRole.ADMIN;
   const canModifyUsers = false;
   const [searchParams, setSearchParams] = useSearchParams();
   const uidParam = searchParams.get("uid");
@@ -78,6 +88,7 @@ function Users() {
   const [establishmentSearch, setEstablishmentSearch] = useState("");
   const [establishmentPage, setEstablishmentPage] = useState(1);
   const [expandedEstablishmentKey, setExpandedEstablishmentKey] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -126,6 +137,10 @@ function Users() {
   }, [uidParam, users, setSearchParams]);
 
   const handleAddUser = () => {
+    if (!isAdmin) {
+      alert("Staff members are not permitted to add user accounts.");
+      return;
+    }
     setSelectedUser(null);
     setIsDialogOpen(true);
   };
@@ -161,11 +176,63 @@ function Users() {
     }
   };
 
-  const handleSaveUser = async (data: Partial<UserProfile>) => {
+  const handleResetPassword = async (targetUser: UserProfile) => {
+    if (!targetUser.email) {
+      throw new Error("This user does not have a registered email address.");
+    }
+    await sendStaffPasswordReset(targetUser.email);
+    setSuccessNotice(`Password reset instructions sent to ${targetUser.email}.`);
+  };
+
+  const handleSaveUser = async (data: Partial<UserProfile>, avatarFile?: File | null) => {
     const normalizeOptionalString = (value?: string | null) => {
       const trimmed = value?.trim();
       return trimmed ? trimmed : null;
     };
+
+    let targetUid = selectedUser?.uid;
+    let emailDispatched = false;
+    let resolvedPhotoUrl = normalizeOptionalString(data.photoUrl);
+
+    if (!selectedUser) {
+      if (!isAdmin) {
+        throw new Error("Staff members are not permitted to create user accounts.");
+      }
+      const email = data.email?.trim().toLowerCase();
+      if (!email) {
+        throw new Error("Email address is required.");
+      }
+      const staffAuth = await createStaffAuthAccount(email, avatarFile);
+      targetUid = staffAuth.uid;
+      emailDispatched = staffAuth.emailSent;
+      if (staffAuth.photoUrl) {
+        resolvedPhotoUrl = staffAuth.photoUrl;
+      }
+    } else if (avatarFile && targetUid) {
+      try {
+        const compressed = await compressImage(avatarFile, {
+          maxDimension: AVATAR_MAX_DIMENSION,
+          quality: AVATAR_QUALITY,
+        });
+        resolvedPhotoUrl = await uploadAvatar(targetUid, compressed.blob, compressed.type);
+      } catch (uploadErr) {
+        console.warn("Storage upload failed, generating safe thumbnail fallback:", uploadErr);
+        try {
+          const tinyThumb = await compressImage(avatarFile, { maxDimension: 96, quality: 0.6 });
+          const thumbDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(tinyThumb.blob);
+          });
+          if (thumbDataUrl.length <= 40000) {
+            resolvedPhotoUrl = thumbDataUrl;
+          }
+        } catch {
+          // Keep prior photoUrl if thumbnail generation fails
+        }
+      }
+    }
 
     const normalizedData: Partial<UserProfile> = {
       ...data,
@@ -173,11 +240,11 @@ function Users() {
       displayName: normalizeOptionalString(data.displayName),
       firstName: normalizeOptionalString(data.firstName),
       lastName: normalizeOptionalString(data.lastName),
-      photoUrl: normalizeOptionalString(data.photoUrl),
+      photoUrl: resolvedPhotoUrl ?? null,
       isIndividual: data.isIndividual ?? true,
       establishmentName: normalizeOptionalString(data.establishmentName),
       establishmentAddress: normalizeOptionalString(data.establishmentAddress),
-      role: data.role ?? UserRole.USER,
+      role: selectedUser ? (data.role ?? UserRole.USER) : UserRole.STAFF,
     };
 
     try {
@@ -187,19 +254,23 @@ function Users() {
         }
         await updateUserProfile(selectedUser.uid, normalizedData);
       } else {
-        const newUid = Math.random().toString(36).substring(2, 15);
         await createUserProfile({
-          uid: newUid,
+          uid: targetUid!,
           email: normalizedData.email!,
           displayName: normalizedData.displayName || null,
           firstName: normalizedData.firstName || null,
           lastName: normalizedData.lastName || null,
           photoUrl: normalizedData.photoUrl || null,
-          role: normalizedData.role!,
+          role: UserRole.STAFF,
           isIndividual: normalizedData.isIndividual ?? true,
           establishmentName: normalizedData.establishmentName || null,
           establishmentAddress: normalizedData.establishmentAddress || null,
         });
+        setSuccessNotice(
+          emailDispatched
+            ? `Staff account created! An email with instructions to set their password has been sent to ${normalizedData.email}.`
+            : `Staff account created for ${normalizedData.email}.`
+        );
       }
       await fetchUsers();
     } catch (err: any) {
@@ -265,11 +336,31 @@ function Users() {
     return filteredEstablishments.slice(start, start + 2);
   }, [filteredEstablishments, establishmentPage]);
 
+  if (!authLoading && !isAdmin) {
+    return (
+      <DashboardLayout>
+        <ErrorPage errorCode={403} />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Users</h2>
-        <p className="text-zinc-500 text-sm">Manage registered accounts and permissions</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Users</h2>
+          <p className="text-zinc-500 text-sm">Manage registered accounts and permissions</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportUsersToExcel(users)}
+          disabled={loading || users.length === 0}
+          className="rounded-xl border-zinc-200 dark:border-white/10 gap-2 w-fit font-bold text-xs"
+        >
+          <HugeiconsIcon icon={Download01Icon} className="size-4" />
+          Export to Excel
+        </Button>
       </div>
 
       {loading ? (
@@ -298,6 +389,22 @@ function Users() {
       ) : (
         <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
           <SafeUserStats users={users} />
+
+          {successNotice && (
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-cemo-primary/10 border border-cemo-primary/20 text-sm text-zinc-900 dark:text-white shadow-sm">
+              <div className="flex items-center gap-3">
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5 text-cemo-primary shrink-0" />
+                <span className="font-medium">{successNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessNotice(null)}
+                className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white font-bold px-2 py-1 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           <div className="space-y-3">
             <div className="flex flex-col @3xl:flex-row @3xl:items-center @3xl:justify-between gap-3">
               <div className="flex items-center justify-between @3xl:justify-start gap-3">
@@ -397,7 +504,8 @@ function Users() {
             onEdit={handleEditUser}
             onDelete={handleDeleteUser}
             onRefresh={fetchUsers}
-            onAdd={handleAddUser}
+            onAdd={isAdmin ? handleAddUser : undefined}
+            onResetPassword={handleResetPassword}
           />
         </div>
       )}

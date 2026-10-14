@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -15,13 +15,18 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "~/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Camera01Icon, Upload01Icon, Mail01Icon } from "@hugeicons/core-free-icons";
+import { validateImageFile } from "~/lib/imageCompression";
+import { getAuthErrorMessage } from "~/lib/authErrors";
 import { UserRole } from "~/lib/firestore/users";
 import type { UserProfile } from "~/lib/firestore/users";
 
 interface UserDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Partial<UserProfile>) => Promise<void>;
+  onSave: (data: Partial<UserProfile>, avatarFile?: File | null) => Promise<void>;
   user?: UserProfile | null;
 }
 
@@ -32,50 +37,95 @@ function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
     firstName: "",
     lastName: "",
     photoUrl: "",
-    role: UserRole.USER,
+    role: UserRole.STAFF,
     isIndividual: true,
     establishmentName: "",
     establishmentAddress: "",
   });
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    setAvatarFile(null);
+    setFileError(null);
+    setFormError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
     if (user) {
-        setFormData({
-          email: user.email,
-          displayName: user.displayName || "",
-          firstName: user.firstName || "",
-          lastName: user.lastName || "",
-          photoUrl: user.photoUrl || "",
-          role: user.role,
-          isIndividual: user.isIndividual,
-          establishmentName: user.establishmentName || "",
-          establishmentAddress: user.establishmentAddress || "",
-        });
-      } else {
-        setFormData({
-          email: "",
-          displayName: "",
-          firstName: "",
-          lastName: "",
-          photoUrl: "",
-          role: UserRole.USER,
-          isIndividual: true,
-          establishmentName: "",
-          establishmentAddress: "",
-        });
-      }
+      setFormData({
+        email: user.email,
+        displayName: user.displayName || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        photoUrl: user.photoUrl || "",
+        role: user.role,
+        isIndividual: user.isIndividual,
+        establishmentName: user.establishmentName || "",
+        establishmentAddress: user.establishmentAddress || "",
+      });
+      setPreviewUrl(user.photoUrl || null);
+    } else {
+      setFormData({
+        email: "",
+        displayName: "",
+        firstName: "",
+        lastName: "",
+        photoUrl: "",
+        role: UserRole.STAFF,
+        isIndividual: true,
+        establishmentName: "",
+        establishmentAddress: "",
+      });
+      setPreviewUrl(null);
+    }
   }, [user, isOpen]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const error = validateImageFile(file);
+    if (error) {
+      setFileError(error);
+      return;
+    }
+
+    setFileError(null);
+    setAvatarFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+  };
+
+  const handleRemovePhoto = () => {
+    setAvatarFile(null);
+    if (previewUrl && previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setFormData(prev => ({ ...prev, photoUrl: "" }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setLoading(true);
     try {
-      await onSave(formData);
+      const dataToSave = !user ? { ...formData, role: UserRole.STAFF } : formData;
+      await onSave(dataToSave, avatarFile);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving user:", error);
+      setFormError(getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -86,31 +136,97 @@ function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
       <DialogContent className="bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-2xl sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-zinc-900 dark:text-white font-bold text-xl">
-            {user ? "Edit User Profile" : "Add New User"}
+            {user ? "Edit User Profile" : "Add Staff User"}
           </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">First Name</label>
-              <Input 
-                value={formData.firstName || ""} 
-                onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
-                placeholder="John"
+          {/* Top Section: Photo avatar preview in top-left, names on the right */}
+          <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider self-start">
+                Photo
+              </label>
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="relative group cursor-pointer"
+                title="Click to choose a photo"
+              >
+                <Avatar className="size-20 border-2 border-dashed border-zinc-300 dark:border-white/20 group-hover:border-cemo-primary transition-all duration-200 overflow-hidden shadow-sm">
+                  {previewUrl ? (
+                    <AvatarImage src={previewUrl} alt="Avatar preview" className="object-cover size-full" />
+                  ) : null}
+                  <AvatarFallback className="bg-zinc-100 dark:bg-white/5 text-zinc-400 group-hover:text-cemo-primary flex flex-col items-center justify-center transition-colors">
+                    <HugeiconsIcon icon={Camera01Icon} className="size-6 mb-1 text-zinc-400 group-hover:text-cemo-primary transition-colors" />
+                    <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Upload</span>
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] font-medium backdrop-blur-[1px]">
+                  <HugeiconsIcon icon={Upload01Icon} className="size-4 mb-0.5" />
+                  <span>Change</span>
+                </div>
+              </div>
+
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleFileChange}
+                className="hidden" 
               />
+
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-6 px-2 text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:text-cemo-primary hover:bg-cemo-primary/10 rounded-lg"
+                >
+                  {previewUrl ? "Change" : "Browse"}
+                </Button>
+                {previewUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemovePhoto}
+                    className="h-6 px-2 text-[11px] font-medium text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded-lg"
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Last Name</label>
-              <Input 
-                value={formData.lastName || ""} 
-                onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
-                placeholder="Doe"
-              />
+
+            <div className="flex-1 space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">First Name</label>
+                <Input 
+                  value={formData.firstName || ""} 
+                  onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                  className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Last Name</label>
+                <Input 
+                  value={formData.lastName || ""} 
+                  onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                  className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
+                  placeholder="Doe"
+                />
+              </div>
             </div>
           </div>
+
+          {fileError && (
+            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-500">
+              {fileError}
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Display Name</label>
@@ -127,37 +243,62 @@ function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
             <Input 
               type="email"
               value={formData.email || ""} 
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
+              onChange={e => {
+                setFormData({ ...formData, email: e.target.value });
+                if (formError) setFormError(null);
+              }}
               className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
-              placeholder="john@cemo.tech"
+              placeholder="staff@cemo.tech"
               required
             />
+            {!user && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-cemo-primary/10 border border-cemo-primary/20 text-xs text-zinc-700 dark:text-zinc-300">
+                <HugeiconsIcon icon={Mail01Icon} className="size-4 text-cemo-primary shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-zinc-900 dark:text-white block">Password Setup Email</span>
+                  <span>
+                    A password setup link will be automatically sent to this email address so the staff member can set their password and log in.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Photo URL</label>
-            <Input 
-              value={formData.photoUrl || ""} 
-              onChange={e => setFormData({ ...formData, photoUrl: e.target.value })}
-              className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20"
-              placeholder="https://example.com/avatar.jpg"
-            />
-          </div>
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-500 font-medium">
+              {formError}
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">System Role</label>
-            <Select 
-              value={formData.role} 
-              onValueChange={value => setFormData({ ...formData, role: value as UserRole })}
-            >
-              <SelectTrigger className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20">
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
-                <SelectItem value={UserRole.USER}>Standard User</SelectItem>
-                <SelectItem value={UserRole.ADMIN}>Administrator</SelectItem>
-              </SelectContent>
-            </Select>
+            {!user ? (
+              <div>
+                <Select value={UserRole.STAFF} disabled>
+                  <SelectTrigger className="rounded-xl border-zinc-200 dark:border-white/10 bg-zinc-100/60 dark:bg-white/5 opacity-80 cursor-not-allowed">
+                    <SelectValue placeholder="Staff Member" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
+                    <SelectItem value={UserRole.STAFF}>Staff Member</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-zinc-400 mt-1">Admin can only create Staff role accounts.</p>
+              </div>
+            ) : (
+              <Select 
+                value={formData.role} 
+                onValueChange={value => setFormData({ ...formData, role: value as UserRole })}
+              >
+                <SelectTrigger className="rounded-xl border-zinc-200 dark:border-white/10 bg-white/50 dark:bg-black/20">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-xl">
+                  <SelectItem value={UserRole.STAFF}>Staff Member</SelectItem>
+                  <SelectItem value={UserRole.USER}>Standard User</SelectItem>
+                  <SelectItem value={UserRole.ADMIN}>Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -232,7 +373,7 @@ function UserDialog({ isOpen, onClose, onSave, user }: UserDialogProps) {
               disabled={loading}
               className="rounded-xl bg-cemo-primary text-black hover:bg-cemo-primary/90 font-bold px-8 shadow-[0_0_15px_rgba(57,255,20,0.2)]"
             >
-              {loading ? "Saving..." : user ? "Update User" : "Create User"}
+              {loading ? (user ? "Saving..." : "Creating Account & Sending Email...") : user ? "Update User" : "Create Staff Account"}
             </Button>
           </DialogFooter>
         </form>

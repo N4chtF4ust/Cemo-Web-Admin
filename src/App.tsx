@@ -10,6 +10,7 @@ import * as ErrorPageModule from "./pages/ErrorPage";
 import ChartHarness from "./pages/__ChartHarness";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RootRoute } from "./components/RootRoute";
+import { UserRole } from "./lib/firestore/users";
 
 const resolvePageComponent = <TProps extends object>(
   component: unknown,
@@ -54,7 +55,7 @@ const router = createBrowserRouter([
   {
     path: "/users",
     element: (
-      <ProtectedRoute>
+      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
         <Users />
       </ProtectedRoute>
     ),
@@ -70,7 +71,7 @@ const router = createBrowserRouter([
   {
     path: "/reports",
     element: (
-      <ProtectedRoute>
+      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
         <Reports />
       </ProtectedRoute>
     ),
