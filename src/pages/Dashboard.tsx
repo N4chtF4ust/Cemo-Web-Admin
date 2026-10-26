@@ -208,7 +208,8 @@ function Dashboard() {
                 <HugeiconsIcon icon={UserCircleIcon} className="size-8" />
             </div>
             <div className="space-y-1">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Total Individual Users</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Total
+                  Individual Users</p>
                 <div className="flex items-baseline gap-2">
                     <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">{loading ? "..." : stats.totalIndividuals}</h3>
                     <span className="text-xs text-zinc-400">active accounts</span>

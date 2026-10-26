@@ -6,6 +6,7 @@ import * as UsersPage from "./pages/Users";
 import * as WasteEntriesPage from "./pages/WasteEntries";
 import * as ReportsPage from "./pages/Reports";
 import * as SettingsPage from "./pages/Settings";
+import { PrivacyPolicy } from "./pages/PrivacyPolicy";
 import * as ErrorPageModule from "./pages/ErrorPage";
 import ChartHarness from "./pages/__ChartHarness";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -91,6 +92,10 @@ const router = createBrowserRouter([
   {
     path: "/login",
     element: <Login />,
+  },
+  {
+    path: "/privacy-policy",
+    element: <PrivacyPolicy />,
   },
   {
     path: "*",
