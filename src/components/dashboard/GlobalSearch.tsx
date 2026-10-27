@@ -12,6 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { UserRole, getUsers, type UserProfile } from "~/lib/firestore/users";
 import { getAllWasteEntries, type WasteEntry } from "~/lib/firestore/wasteEntries";
+import { getAccountDeletionRequests, type AccountDeletionRequest } from "~/lib/firestore/accountDeletionRequests";
 import {
   buildSearchIndex,
   filterSearchIndexByRole,
@@ -29,6 +30,7 @@ const KIND_ICONS: Record<SearchResultKind, typeof Search01Icon> = {
   user: UserCircleIcon,
   establishment: Building03Icon,
   entry: Note01Icon,
+  deletionRequest: AlertCircleIcon,
 };
 
 const ENTRY_FETCH_LIMIT = 500;
@@ -38,19 +40,19 @@ const CACHE_TTL_MS = 2 * 60 * 1000;
  * Module-level cache: the Navbar remounts on every route change, and refetching
  * the whole dataset each time would be wasteful.
  */
-let cache: { at: number; users: UserProfile[]; entries: WasteEntry[] } | null = null;
-let inflight: Promise<{ users: UserProfile[]; entries: WasteEntry[] }> | null = null;
+let cache: { at: number; users: UserProfile[]; entries: WasteEntry[]; requests: AccountDeletionRequest[]; includesRequests: boolean } | null = null;
+let inflight: Promise<{ users: UserProfile[]; entries: WasteEntry[]; requests: AccountDeletionRequest[] }> | null = null;
 
-const loadSearchData = () => {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
-    return Promise.resolve({ users: cache.users, entries: cache.entries });
+const loadSearchData = (includeRequests: boolean) => {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS && (!includeRequests || cache.includesRequests)) {
+    return Promise.resolve({ users: cache.users, entries: cache.entries, requests: cache.requests });
   }
 
   if (!inflight) {
-    inflight = Promise.all([getUsers(), getAllWasteEntries(ENTRY_FETCH_LIMIT)])
-      .then(([users, entries]) => {
-        cache = { at: Date.now(), users, entries };
-        return { users, entries };
+    inflight = Promise.all([getUsers(), getAllWasteEntries(ENTRY_FETCH_LIMIT), includeRequests ? getAccountDeletionRequests() : Promise.resolve([])])
+      .then(([users, entries, requests]) => {
+        cache = { at: Date.now(), users, entries, requests, includesRequests: includeRequests };
+        return { users, entries, requests };
       })
       .finally(() => {
         inflight = null;
@@ -72,6 +74,7 @@ export function GlobalSearch() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [entries, setEntries] = useState<WasteEntry[]>([]);
+  const [requests, setRequests] = useState<AccountDeletionRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,10 +84,11 @@ export function GlobalSearch() {
     if (loaded || loading) return;
     setLoading(true);
     setError(null);
-    loadSearchData()
+    loadSearchData(isAdmin)
       .then((data) => {
         setUsers(data.users);
         setEntries(data.entries);
+        setRequests(data.requests);
         setLoaded(true);
       })
       .catch((err: any) => {
@@ -95,8 +99,8 @@ export function GlobalSearch() {
   };
 
   const index = useMemo(
-    () => filterSearchIndexByRole(buildSearchIndex(users, entries), profile?.role),
-    [users, entries, profile?.role],
+    () => filterSearchIndexByRole(buildSearchIndex(users, entries, requests), profile?.role),
+    [users, entries, requests, profile?.role],
   );
   const results = useMemo(() => searchIndex(index, query), [index, query]);
   const groups = useMemo(() => groupResults(results), [results]);

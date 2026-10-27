@@ -6,6 +6,7 @@ import * as UsersPage from "./pages/Users";
 import * as WasteEntriesPage from "./pages/WasteEntries";
 import * as ReportsPage from "./pages/Reports";
 import * as SettingsPage from "./pages/Settings";
+import * as AccountDeletionPage from "./pages/AccountDeletion";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy";
 import * as ErrorPageModule from "./pages/ErrorPage";
 import ChartHarness from "./pages/__ChartHarness";
@@ -34,6 +35,7 @@ const Users = resolvePageComponent(UsersPage.Users ?? UsersPage.default, "Users"
 const WasteEntries = resolvePageComponent(WasteEntriesPage.WasteEntries ?? WasteEntriesPage.default, "WasteEntries");
 const Reports = resolvePageComponent(ReportsPage.Reports ?? ReportsPage.default, "Reports");
 const Settings = resolvePageComponent(SettingsPage.Settings ?? SettingsPage.default, "Settings");
+const AccountDeletion = resolvePageComponent(AccountDeletionPage.AccountDeletion ?? AccountDeletionPage.default, "AccountDeletion");
 const ErrorPage = resolvePageComponent(
   ErrorPageModule.ErrorPage ?? ErrorPageModule.default,
   "ErrorPage",
@@ -84,6 +86,10 @@ const router = createBrowserRouter([
         <Settings />
       </ProtectedRoute>
     ),
+  },
+  {
+    path: "/account-deletion",
+    element: <AccountDeletion />,
   },
   {
     path: "/__chartcheck",

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "~/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "~/lib/firebase";
+import { signOut } from "firebase/auth";
 import { getUserProfile, UserRole } from "~/lib/firestore/users";
 import { ErrorPage } from "~/pages/ErrorPage";
 
@@ -9,6 +11,8 @@ interface ProtectedRouteProps {
   allowedRoles?: UserRole[];
 }
 
+const DEFAULT_ALLOWED_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.STAFF];
+
 /**
  * A wrapper component that enforces route-level authentication and role authorization.
  * If the user is unauthenticated -> 401 Unauthorized.
@@ -16,7 +20,7 @@ interface ProtectedRouteProps {
  */
 export function ProtectedRoute({ 
   children, 
-  allowedRoles = [UserRole.ADMIN, UserRole.STAFF] 
+  allowedRoles = DEFAULT_ALLOWED_ROLES
 }: ProtectedRouteProps) {
   const [loading, setLoading] = useState(true);
   const [authState, setAuthState] = useState<{
@@ -28,7 +32,11 @@ export function ProtectedRoute({
   });
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | undefined;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = undefined;
+
       if (!user) {
         setAuthState({ isLoggedIn: false, hasPermission: false });
         setLoading(false);
@@ -37,9 +45,38 @@ export function ProtectedRoute({
 
       try {
         const profile = await getUserProfile(user.uid);
-        const userRole = profile?.role;
-        const permitted = !!userRole && allowedRoles.includes(userRole);
-        setAuthState({ isLoggedIn: true, hasPermission: permitted });
+        if (!profile) {
+          await signOut(auth);
+          setAuthState({ isLoggedIn: false, hasPermission: false });
+          return;
+        }
+
+        setAuthState({
+          isLoggedIn: true,
+          hasPermission: allowedRoles.includes(profile.role),
+        });
+
+        const profileRef = doc(db, "users", user.uid);
+        unsubscribeProfile = onSnapshot(
+          profileRef,
+          async (snapshot) => {
+            if (!snapshot.exists()) {
+              await signOut(auth);
+              setAuthState({ isLoggedIn: false, hasPermission: false });
+              return;
+            }
+
+            const userRole = snapshot.data().role as UserRole | undefined;
+            setAuthState({
+              isLoggedIn: true,
+              hasPermission: !!userRole && allowedRoles.includes(userRole),
+            });
+          },
+          (error) => {
+            console.error("Live auth verification failed:", error);
+          },
+        );
+
       } catch (error) {
         console.error("Auth verification failed:", error);
         setAuthState({ isLoggedIn: true, hasPermission: false });
@@ -48,7 +85,10 @@ export function ProtectedRoute({
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeProfile?.();
+      unsubscribe();
+    };
   }, [allowedRoles]);
 
   if (loading) {

@@ -7,6 +7,7 @@ import {
   Note01Icon,
   Files01Icon,
   Settings02Icon,
+  Delete02Icon,
 } from "@hugeicons/core-free-icons";
 import { 
   Sidebar, 
@@ -43,6 +44,7 @@ interface NavEntry {
   url: string;
   icon: typeof DashboardCircleIcon;
   adminOnly?: boolean;
+  userOnly?: boolean;
 }
 
 const data: { navMain: NavEntry[]; navSecondary: NavEntry[] } = {
@@ -54,6 +56,8 @@ const data: { navMain: NavEntry[]; navSecondary: NavEntry[] } = {
     { title: "Waste Entry", url: "/waste-entries", icon: Note01Icon },
     { title: "Reports", url: "/reports", icon: Files01Icon, adminOnly: true },
     { title: "Settings", url: "/settings", icon: Settings02Icon },
+    { title: "Delete account", url: "/account-deletion", icon: Delete02Icon, userOnly: true },
+    { title: "Deletion requests", url: "/account-deletion", icon: Delete02Icon, adminOnly: true },
   ],
 };
 
@@ -113,8 +117,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { profile } = useCurrentAdmin();
   const isAdmin = profile?.role === UserRole.ADMIN;
 
-  const visibleNavMain = data.navMain.filter((item) => !item.adminOnly || isAdmin);
-  const visibleNavSecondary = data.navSecondary.filter((item) => !item.adminOnly || isAdmin);
+  const isUser = profile?.role === UserRole.USER;
+  const canSeeItem = (item: NavEntry) =>
+    isUser
+      ? item.userOnly === true
+      : (!item.adminOnly || isAdmin) && !item.userOnly;
+  const visibleNavMain = data.navMain.filter(canSeeItem);
+  const visibleNavSecondary = data.navSecondary.filter(canSeeItem);
 
   const handleSignOut = async () => {
     try {

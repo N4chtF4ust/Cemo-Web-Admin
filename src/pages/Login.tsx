@@ -24,6 +24,40 @@ function Login() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isHoveringForm, setIsHoveringForm] = useState(false);
 
+  const finishLogin = async (credential: import("firebase/auth").UserCredential) => {
+    const [{ signOut }, { getUserProfile, getUserProfileByEmail, createUserProfile, deleteUserProfile, UserRole }] =
+      await Promise.all([
+        import("firebase/auth"),
+        import("~/lib/firestore/users"),
+      ]);
+    let existingProfile = await getUserProfile(credential.user.uid);
+    if (!existingProfile && credential.user.email) {
+      const emailMatch = await getUserProfileByEmail(credential.user.email);
+      if (emailMatch) {
+        existingProfile = await createUserProfile({ ...emailMatch, uid: credential.user.uid });
+        if (emailMatch.uid !== credential.user.uid) await deleteUserProfile(emailMatch.uid);
+      }
+    }
+    if (!existingProfile) {
+      existingProfile = await createUserProfile({
+        uid: credential.user.uid,
+        email: credential.user.email || "",
+        displayName: credential.user.displayName || credential.user.email?.split("@")[0] || "User",
+        firstName: null,
+        lastName: null,
+        photoUrl: credential.user.photoURL || null,
+        role: UserRole.STAFF,
+        isIndividual: true,
+        establishmentName: null,
+        establishmentAddress: null,
+      });
+    }
+    if (existingProfile.role !== UserRole.ADMIN && existingProfile.role !== UserRole.STAFF) {
+      await signOut((await import("~/lib/firebase")).auth);
+      throw new Error("Unauthorized access. Only administrators and staff can login.");
+    }
+  };
+
   const getAuthErrorMessage = (error: unknown) => {
     const errorCode =
       typeof error === "object" &&
@@ -63,52 +97,9 @@ function Login() {
     setIsSubmitting(true);
 
     try {
-      const [
-        { signInWithEmailAndPassword, signOut },
-        { auth },
-        { getUserProfile, getUserProfileByEmail, createUserProfile, deleteUserProfile, UserRole },
-      ] = await Promise.all([
-        import("firebase/auth"),
-        import("~/lib/firebase"),
-        import("~/lib/firestore/users"),
-      ]);
-
-      const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
-
-      let existingProfile = await getUserProfile(credential.user.uid);
-      if (!existingProfile) {
-        // Recovery mechanism: check if a profile exists by email (e.g. from prior creation with mismatched UID)
-        const emailMatch = await getUserProfileByEmail(normalizedEmail);
-        if (emailMatch) {
-          existingProfile = await createUserProfile({
-            ...emailMatch,
-            uid: credential.user.uid,
-          });
-          if (emailMatch.uid !== credential.user.uid) {
-            await deleteUserProfile(emailMatch.uid).catch(() => {});
-          }
-        } else {
-          // Auto-provision missing staff profile so the authenticated user can immediately log in
-          existingProfile = await createUserProfile({
-            uid: credential.user.uid,
-            email: normalizedEmail,
-            displayName: credential.user.displayName || normalizedEmail.split("@")[0],
-            firstName: null,
-            lastName: null,
-            photoUrl: credential.user.photoURL || null,
-            role: UserRole.STAFF,
-            isIndividual: true,
-            establishmentName: null,
-            establishmentAddress: null,
-          });
-        }
-      }
-
-      if (existingProfile.role !== UserRole.ADMIN && existingProfile.role !== UserRole.STAFF) {
-        await signOut(auth);
-        throw new Error("Unauthorized access. Only administrators and staff can login.");
-      }
-
+      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { auth } = await import("~/lib/firebase");
+      await finishLogin(await signInWithEmailAndPassword(auth, normalizedEmail, password));
       navigate("/");
     } catch (error) {
       if (error instanceof Error && (

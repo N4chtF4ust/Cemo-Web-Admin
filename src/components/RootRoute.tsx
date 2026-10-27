@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { Navigate } from "react-router-dom";
 import { auth } from "~/lib/firebase";
-import { Login } from "~/pages/Login";
+import { Landing } from "~/pages/Landing";
 
 /**
  * RootRoute component:
@@ -35,5 +35,5 @@ export function RootRoute() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <Login />;
+  return <Landing />;
 }

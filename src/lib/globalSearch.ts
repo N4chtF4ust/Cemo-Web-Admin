@@ -1,8 +1,9 @@
 import { format } from "date-fns";
 import { UserRole, type UserProfile } from "./firestore/users";
 import type { WasteEntry } from "./firestore/wasteEntries";
+import type { AccountDeletionRequest } from "./firestore/accountDeletionRequests";
 
-export type SearchResultKind = "page" | "user" | "establishment" | "entry";
+export type SearchResultKind = "page" | "user" | "establishment" | "entry" | "deletionRequest";
 
 export interface SearchResult {
   id: string;
@@ -20,6 +21,7 @@ export const SEARCH_KIND_LABELS: Record<SearchResultKind, string> = {
   user: "Users",
   establishment: "Establishments",
   entry: "Waste Entries",
+  deletionRequest: "Account Deletion Requests",
 };
 
 /** Static destinations, always searchable without hitting Firestore. */
@@ -72,6 +74,7 @@ const KIND_WEIGHT: Record<SearchResultKind, number> = {
   user: 8,
   establishment: 6,
   entry: 2,
+  deletionRequest: 10,
 };
 
 const WORD_BOUNDARY = /[\s@._\-/,:]/;
@@ -184,15 +187,30 @@ const buildEntryResults = (entries: WasteEntry[], users: UserProfile[]): SearchR
     });
 };
 
+const buildDeletionRequestResults = (requests: AccountDeletionRequest[]): SearchResult[] =>
+  requests.map((request) => ({
+    id: `deletion-request:${request.id}`,
+    kind: "deletionRequest" as const,
+    title: request.email || request.uid,
+    subtitle: `${request.status} · ${request.reason || "No reason provided"}`,
+    url: "/account-deletion",
+    keywords: [request.email, request.uid, request.displayName || "", request.reason || "", request.status],
+  }));
+
 /**
  * Flattens users, establishments and waste entries into one searchable list,
  * with the static pages always first.
  */
-export const buildSearchIndex = (users: UserProfile[], entries: WasteEntry[]): SearchResult[] => [
+export const buildSearchIndex = (
+  users: UserProfile[],
+  entries: WasteEntry[],
+  requests: AccountDeletionRequest[] = [],
+): SearchResult[] => [
   ...PAGE_RESULTS,
   ...buildUserResults(users),
   ...buildEstablishmentResults(users),
   ...buildEntryResults(entries, users),
+  ...buildDeletionRequestResults(requests),
 ];
 
 /**
@@ -210,6 +228,7 @@ export const filterSearchIndexByRole = (
   return index.filter(
     (item) =>
       item.kind !== "user" &&
+      item.kind !== "deletionRequest" &&
       !item.url.startsWith("/users") &&
       !item.url.startsWith("/reports"),
   );
